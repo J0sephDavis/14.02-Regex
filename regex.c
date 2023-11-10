@@ -111,6 +111,7 @@ int main(int argc, char* argv[]) {
 			*insertion_point++ = ' ';
 	}
 	printf("expr[%s]\ntext[%s]\n", regexpr,input_text);
+	printf(">%s\n", (match(regexpr, input_text) == 1) ? "MATCH" : "NO MATCH");
 	//
 	free(input_text);
 	free(regexpr);
