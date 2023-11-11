@@ -167,7 +167,6 @@ int matchplus(int r_len, regex* regexp, char *text) {
 				 	|| regexp[0].modifier != M_literal))
 	{
 		if (matchhere(r_len-1, regexp+1, text)) {
-			printf("<!+!>\n");
 			return 1;		
 		}
 	}
@@ -179,10 +178,8 @@ int matchstar(int r_len, regex* regexp, char *text) {
 	printf("*(%c)\t[%s]\n", regexp[0].character, text);
 	do { //a * matches zero or more instances
 		if (matchhere(r_len-1,regexp+1,text)) {
-			printf("<!*!>\n");
 			return 1;
 		}
-		printf("[SB]");
 	} while(*text != '\0' && ((regexp[0].character == *text++) || (regexp[0].modifier != M_literal)));
 	return 0;
 }
