@@ -14,26 +14,42 @@
  */
 //data structures
 enum rules { //each one matches the rules, declared above, in order
-	CHAR = 1,
-	ANY_CHAR,
-	BEGINNING,
-	END,
-	STAR,
-	PLUS,
-	BINARY,
-	LITERAL
+	R_CHAR = 1,
+	R_ANY_CHAR,
+	R_ANCHOR,
+//	R_BEGINNING,
+//	R_END,
+	R_STAR,
+	R_PLUS,
+	R_BINARY,
+	R_LITERAL
 };
 
 typedef struct regex {
 	int rule; 	//the type of function this represents?
 	char literal; 	//the character itself
 } regex;
-//global-data
-const int symbols_len = 7;
-const char *symbols = ".^$*+?\\";
+
+/*** global symbols ***/
+//all symbols
+const int all_symbols_len = 7;
+const char *all_symbols = ".^$*+?\\";
+//postfix functions
+const int postfix_len = 5;
+const char *postfix_symbols = ".*+?\\";
+//prefix functions
+const int prefix_len = 1;
+const char *prefix_symbols = "\\";
+//anchors
+const int anchor_len = 2;
+const char *anchor_symbols = "^$";
 /*** prototypes ***/
 //functions
-int issymbol(int c);
+int isSymbol(int c);
+int isPostSymbol(int c);
+int isPreSymbol(int c);
+int isAnchor(int c);
+regex* regex_to_code(char* regexp);
 //general match
 int match(char* regexp, char *text);
 int matchhere(char* regexp, char *text);
@@ -78,7 +94,7 @@ int matchhere(char *regexp, char *text) {
 		return 1;
 	//if the current character is a back-slash & the next character is a symbol
 	//only match the symbol
-	if (regexp[0] == '\\' && issymbol(regexp[1]))
+	if (regexp[0] == '\\' && isPostSymbol(regexp[1]))
 		return matchliteral(regexp[1], regexp+2, text);
 	//if the regex is a character followed by a *, call matchstar to see whether the closure matches
 	if (regexp[1] == '*')
@@ -165,11 +181,77 @@ int matchliteral(int c, char *regexp, char *text) {
 }
 
 //checks if the character is a symbol used for rules
-int issymbol(int c) {
-	for (int a = 0; a < symbols_len; a++)
-		if (c == symbols[a])
+int isSymbol(int c) {
+	for (int a = 0; a < all_symbols_len; a++)
+		if (c == all_symbols[a])
 			return 1;
 	return 0;
+}
+int isPostSymbol(int c) {
+	for (int a = 0; a < postfix_len; a++)
+		if (c == postfix_symbols[a])
+			return 1;
+	return 0;
+}
+int isPreSymbol(int c) {
+	for (int a = 0; a < prefix_len; a++)
+		if (c == prefix_symbols[a])
+			return 1;
+	return 0;
+}
+int isAnchor(int c) {
+	for (int a = 0; a < anchor_len; a++)
+		if (c == anchor_symbols[a])
+			return 1;
+	return 0;
+}
+
+regex* regex_to_code(char* regexp) {
+	if (regexp == NULL) //if we receive nothing, give noting
+		return NULL;
+	int regex_count = 0;
+	int a;
+	regex* rvalue = malloc(sizeof(regex) * strlen(regexp));
+	for (a = 0; regexp[a] != '\0'; a++) {
+		int c = regexp[a];
+		printf("--%d-%c--\n",a,c);
+		if (isPreSymbol(regexp[a])) {
+			if (regexp[a] == '\\') {
+				if (regexp[a+1] =='\0'){
+					printf("ERROR !!!!\n");
+					return NULL;
+				}
+				printf("LITERAL SYMBOL\n");
+				rvalue[regex_count].rule = R_LITERAL;
+				rvalue[regex_count++].literal = regexp[a+1];
+				continue;
+			}
+		}
+		else if (isPostSymbol(regexp[a+1])) {
+			printf("SYMBOL: %c\n", regexp[a+1]);
+			if (c == '*')
+				rvalue[regex_count].rule = R_STAR;
+			else if (c == '+')
+				rvalue[regex_count].rule = R_PLUS;
+			else if (c == '?')
+				rvalue[regex_count].rule = R_BINARY;
+			else if (c == '.')
+				rvalue[regex_count].rule = R_ANY_CHAR;
+			rvalue[regex_count++].literal = c;
+			a++; //skip next symbol
+		}
+		else if (isAnchor(c)) {
+			printf("ANCHOR\n");
+			rvalue[regex_count].rule = R_ANCHOR;
+			rvalue[regex_count++].literal = c;
+		}
+		else {
+			printf("CHAR\n");
+			rvalue[regex_count].rule = R_CHAR;
+			rvalue[regex_count++].literal = c;
+		}
+	}
+	return rvalue; //default
 }
 
 int main(int argc, char* argv[]) {
@@ -203,6 +285,30 @@ int main(int argc, char* argv[]) {
 	}
 	printf("expr[%s]\ntext[%s]\n", regexpr,input_text);
 	printf(">%s\n", (match(regexpr, input_text) == 1) ? "MATCH" : "NO MATCH");
+	//
+	regex* r_code = regex_to_code(regexpr);
+	if (r_code == NULL) return -1;
+	int r_len = 0;
+	for (a = 0; regexpr[a] != '\0'; a++) {
+		if (isPreSymbol(regexpr[a])) {
+			if (regexpr[a] == '\\') {
+				if (regexpr[a+1] =='\0')
+					printf("ERROR !!!!\n");
+				else
+					r_len++;
+			}
+		}
+		else if (isPostSymbol(regexpr[a+1])) {
+			a++; //skip next symbol
+			r_len++;
+		}
+		else 		//covers both anchors & regular characters
+			r_len++;
+	}
+	for (a = 0; a < r_len; a++) {
+		printf("%d:[%c][%d]\n", a, r_code[a].literal, r_code[a].rule);
+	}
+	free (r_code);
 	//
 	free(input_text);
 	free(regexpr);
