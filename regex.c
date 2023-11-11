@@ -13,7 +13,11 @@
  *  \ escapes a rule-character(meta-char) to stand for literal
  *  # matches a digit 	| sets a modifier variable & acts like '.', unless super-rule
  *  & matches a letter 	| sets a modifier variable & acts like '.', unless super-rule
- *
+ *  NEW RULE
+ *  [abc] matches a, b or c.
+ *  [a-c] matches a, b or c.
+ *  [0ab9] matches 0, a, b or 9
+ *  [a-zA-Z] matches all lower&upper case characters, equivalent to &
  */
 //data structures
 enum rules { //each one matches the rules, declared above, in order
@@ -21,8 +25,8 @@ enum rules { //each one matches the rules, declared above, in order
 	R_ANY_CHAR, 	//can use M_digit, M_letter, or M_none for default any-match
 	R_BEGINNING,
 	R_END,
-	R_STAR,
-	R_PLUS,
+	R_STAR, //think about how to separate this into shortes/longest match
+	R_PLUS, //think about separating shortest & longest matches
 	R_BINARY,
 };
 const char* rule_names[8] = {
