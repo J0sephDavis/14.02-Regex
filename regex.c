@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 /* --RULES--
  * c matches any literal character c
@@ -8,8 +9,8 @@
  * $ matches the end of the input string
  * * matches zero or more occurrences of the previous character
  * --ADDITONAL RULES--
- --> currently working on *  + matches one or more occurrences of previous character
- *  ? zero or one matches
+ *  + matches one or more occurrences of previous character
+ *  ? zero or ONE matches
  *  \ negates a rule-character(meta-char) to stand for literal
  */
 /*** prototypes ***/
@@ -20,6 +21,7 @@ int matchhere(char* regexp, char *text);
 int matchplus(int c, char* regexp, char *text);
 int matchstar(int c, char* regexp, char *text);
 int long_matchstar(int c, char* regexp, char *text);
+int matchbinary(int c, char *regex, char *text);
 
 /*** the matching code ***/
 //search for regexp anywhere in text
@@ -37,7 +39,7 @@ int match(char *regexp, char *text) {
 	//if it empty, it can be matched by a single '*'
 	//thus, the do-while loop instead of a while loop
 	do {
-		printf("-\n");
+		printf("---------------------\n");
 		//matches against text shift along each char(text++ moves us down)
 		if (matchhere(regexp,text))
 			return 1;
@@ -55,13 +57,14 @@ int matchhere(char *regexp, char *text) {
 		return 1;
 	//if the regex is a character followed by a *, call matchstar to see whether the closure matches
 	if (regexp[1] == '*')
-	{
-		printf("matchstar!");
 		return matchstar(regexp[0], regexp+2, text);
-	}
 	//if this is a char followed by a *, we call matchplus
 	if (regexp[1] == '+') {
 		return matchplus(regexp[0], regexp+2, text);
+	}
+
+	if (regexp[1] == '?') {
+		return matchbinary(regexp[0], regexp+2, text);
 	}
 	//if the expr is a line-end anchor at the end of the expression.
 	//then the text can only match if it is the end of the text
@@ -76,6 +79,18 @@ int matchhere(char *regexp, char *text) {
 	//if all the previous matches failed, there can be no matchs
 	return 0;
 }
+
+int matchbinary(int c, char *regex, char *text) {
+	printf("?: [%c] [%s] [%s]\n", c, regex, text);
+	//if we find the symbol we're looking for, increase the index of the row
+	if ((c == '.' && isalpha(*text)) || (*text == c)) {
+		text+=1;
+	}
+	//if we didn't find the symbol, don't move the text
+	return matchhere(regex, text);
+
+}
+
 //match one or more occurences of the character
 int matchplus(int c, char *regexp, char *text) {
 	printf("PLUS: [%c] [%s] [%s]\n", c, regexp, text);
