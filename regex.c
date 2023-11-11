@@ -8,7 +8,6 @@
  * ^ matches beginning of the input string
  * $ matches the end of the input string
  * * matches zero or more occurrences of the previous character
- * --ADDITONAL RULES--
  *  + matches one or more occurrences of previous character
  *  ? zero or ONE matches
  *  \ negates a rule-character(meta-char) to stand for literal
