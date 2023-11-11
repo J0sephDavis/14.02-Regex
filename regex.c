@@ -13,7 +13,12 @@
  *  ? zero or ONE matches
  *  \ negates a rule-character(meta-char) to stand for literal
  */
+//data
+const int symbols_len = 7;
+const char *symbols = ".^$*+?\\";
 /*** prototypes ***/
+//functions
+int issymbol(int c);
 //general match
 int match(char* regexp, char *text);
 int matchhere(char* regexp, char *text);
@@ -21,7 +26,8 @@ int matchhere(char* regexp, char *text);
 int matchplus(int c, char* regexp, char *text);
 int matchstar(int c, char* regexp, char *text);
 int long_matchstar(int c, char* regexp, char *text);
-int matchbinary(int c, char *regex, char *text);
+int matchbinary(int c, char *regexp, char *text);
+int matchliteral(int c, char *regexp, char *text);
 
 /*** the matching code ***/
 //search for regexp anywhere in text
@@ -49,12 +55,16 @@ int match(char *regexp, char *text) {
 
 //search for regexp at beginning of text
 int matchhere(char *regexp, char *text) {
-	printf("here: [%s] [%s]\n", regexp, text);
+	printf("here: [%s]\t[%s]\n", regexp, text);
 	//if we have reached the end of the string,
 	//all previous test must've succeeded.
 	//Thus, the regex matches on the text (return 1)
 	if (regexp[0] == '\0')
 		return 1;
+	//if the current character is a back-slash & the next character is a symbol
+	//only match the symbol
+	if (regexp[0] == '\\' && issymbol(regexp[1]))
+		return matchliteral(regexp[1], regexp+2, text);
 	//if the regex is a character followed by a *, call matchstar to see whether the closure matches
 	if (regexp[1] == '*')
 		return matchstar(regexp[0], regexp+2, text);
@@ -80,23 +90,23 @@ int matchhere(char *regexp, char *text) {
 	return 0;
 }
 
-int matchbinary(int c, char *regex, char *text) {
-	printf("?: [%c] [%s] [%s]\n", c, regex, text);
+int matchbinary(int c, char *regexp, char *text) {
+	printf("?(%c): [%s]\t[%s]\n", c, regexp, text);
 	//if we find the symbol we're looking for, increase the index of the row
 	if ((c == '.' && isalpha(*text)) || (*text == c)) {
 		text+=1;
 	}
 	//if we didn't find the symbol, don't move the text
-	return matchhere(regex, text);
+	return matchhere(regexp, text);
 
 }
 
 //match one or more occurences of the character
 int matchplus(int c, char *regexp, char *text) {
-	printf("PLUS: [%c] [%s] [%s]\n", c, regexp, text);
+	printf("+(%c): [%s]\t[%s]\n", c, regexp, text);
 	while(*text != '\0' && (*text++ == c || c == '.')) {
 		if (matchhere(regexp, text)) {
-			printf("[+R]");
+			printf("<!+!>\n");
 			return 1;		
 		}
 	}
@@ -105,10 +115,10 @@ int matchplus(int c, char *regexp, char *text) {
 //search for c*regexp at beginning of text
 //this is the shortest left-most wildcard match
 int matchstar(int c, char *regexp, char *text) {
-	printf("STAR: [%c] [%s] [%s]\n", c, regexp, text);
+	printf("*(%c): [%s]\t[%s]\n", c, regexp, text);
 	do { //a * matches zero or more instances
 		if (matchhere(regexp,text)) {
-			printf("[SR] ");
+			printf("<!*!>\n");
 			return 1;
 		}
 		printf("[SB]");
@@ -124,6 +134,26 @@ int long_matchstar(int c, char *regexp, char *text) {
  		if (matchhere(regexp,t))
 			return 1;
 	} while(t-- > text);
+	return 0;
+}
+
+int matchliteral(int c, char *regexp, char *text) {
+	printf("\\(%c): [%s]\t[%s]\n", c, regexp, text);
+	if (regexp[0] == '*')
+		return matchstar(c, regexp+1, ++text);
+	if (regexp[0] == '+')
+		return matchplus(c, regexp+1, ++text);
+	if (regexp[0] == '?')
+		return matchbinary(c, regexp+1, ++text);
+	if (*text == c) return matchhere(regexp, ++text);
+	return 0;
+}
+
+//checks if the character is a symbol used for rules
+int issymbol(int c) {
+	for (int a = 0; a < symbols_len; a++)
+		if (c == symbols[a])
+			return 1;
 	return 0;
 }
 
