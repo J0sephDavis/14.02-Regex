@@ -59,8 +59,8 @@ typedef struct regex {
 
 /*** global symbols ***/
 //all symbols
-const int all_symbols_len = 7;
-const char *all_symbols = ".^$*+?\\";
+const int all_symbols_len = 9;
+const char *all_symbols = ".&#^$*+?\\";
 //postfix functions
 const char *postfix_symbols = "*+?";
 const int postfix_len = 3;
@@ -73,6 +73,7 @@ const char *anchor_symbols = "^$";
 //substitutes
 const int substitute_len = 3;
 const char *substitute_symbols = ".&#";
+
 /*** prototypes ***/
 //functions
 int isSymbol(int c);
@@ -91,7 +92,7 @@ int long_matchstar(int r_len, regex* regexp, char *text);
 int matchoptional(int r_len, regex* regexp, char *text);
 int matchany(int r_len, regex* regexp, char *text);
 
-/*** the matching code ***/
+/*** general match ***/
 //search for regexp anywhere in text
 /* tests if there is an occurence of the regex anywhere
  * in the text. If so, it returns 1, else 0. When there
@@ -123,6 +124,7 @@ int matchhere(int r_len, regex* regexp, char *text) {
 	//Thus, the regex matches on the text (return 1)
 	if (r_len == 0)
 		return 1;
+	//run the next rule
 	switch (regexp[0].rule) {
 		case R_STAR:
 			return matchstar(r_len,regexp, text);
@@ -138,15 +140,15 @@ int matchhere(int r_len, regex* regexp, char *text) {
 			else break;
 		case R_ANY_CHAR:
 			return matchany(r_len, regexp,text);
-//			return matchhere(r_len-1, regexp+1, text+1);
+		//if we want to run a rule, but are out of text. FAILED.
 		default:
 			if (*text == '\0') return 0;
-			else return -1;
 	}
 	//if all the previous matches failed, there can be no matchs
 	return 0;
 }
 
+/*** match rules ***/
 int matchoptional(int r_len, regex* regexp, char *text) {
 	printf("?(%c) l[%d]\t[%s]\n", regexp[0].character, r_len, text);
 	//if we find the symbol we're looking for, increase the index of the row
@@ -217,6 +219,7 @@ int matchany(int r_len, regex* regexp, char *text) {
 	return 0;
 }
 
+/*** functions ***/
 //checks if the character is a symbol used for rules
 int isSymbol(int c) {
 	for (int a = 0; a < all_symbols_len; a++)
