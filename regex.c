@@ -12,7 +12,23 @@
  *  ? zero or ONE matches
  *  \ negates a rule-character(meta-char) to stand for literal
  */
-//data
+//data structures
+enum rules { //each one matches the rules, declared above, in order
+	CHAR = 1,
+	ANY_CHAR,
+	BEGINNING,
+	END,
+	STAR,
+	PLUS,
+	BINARY,
+	LITERAL
+};
+
+typedef struct regex {
+	int rule; 	//the type of function this represents?
+	char literal; 	//the character itself
+} regex;
+//global-data
 const int symbols_len = 7;
 const char *symbols = ".^$*+?\\";
 /*** prototypes ***/
