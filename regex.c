@@ -11,14 +11,14 @@
  *  + matches one or more occurrences of previous character
  *  ? zero or ONE matches
  *  \ escapes a rule-character(meta-char) to stand for literal
- *  # matches a digit
- *  & matches a letter
+ *  # matches a digit 	| sets a modifier variable & acts like '.', unless super-rule
+ *  & matches a letter 	| sets a modifier variable & acts like '.', unless super-rule
  *
  */
 //data structures
 enum rules { //each one matches the rules, declared above, in order
 	R_CHAR = 0,
-	R_ANY_CHAR,
+	R_ANY_CHAR, 	//can use M_digit, M_letter, or M_none for default any-match
 	R_BEGINNING,
 	R_END,
 	R_STAR,
@@ -34,11 +34,12 @@ const char* rule_names[8] = {
 	"PLUS",
 	"BINARY",
 };
+//these are not needed for R_CHAR, but for the functions used later
 enum modifiers {
-	M_none = 0,
-	M_literal,
-	M_digit,
-	M_letter,
+	M_none = 0, 	//meaning no special reading will be done
+	M_literal, 	//only if char is a symbol, make sure it is read as a literal
+	M_digit, 	//for use with # inside functions
+	M_letter, 	//for use with & inside functions
 };
 const char* modifier_names[4]  = {
 	"none",
@@ -65,12 +66,16 @@ const char *prefix_symbols = "\\";
 //anchors
 const int anchor_len = 2;
 const char *anchor_symbols = "^$";
+//substitutes
+const int substitute_len = 3;
+const char *substitute_symbols = ".&#";
 /*** prototypes ***/
 //functions
 int isSymbol(int c);
 int isPostSymbol(int c);
 int isPreSymbol(int c);
 int isAnchor(int c);
+int isSubstitute(int c);
 regex* regex_to_code(char* regexp);
 //general match
 int match(int r_len, regex* regexp, char *text);
@@ -80,6 +85,7 @@ int matchplus(int r_len, regex* regexp, char *text);
 int matchstar(int r_len, regex* regexp, char *text);
 int long_matchstar(int r_len, regex* regexp, char *text);
 int matchoptional(int r_len, regex* regexp, char *text);
+int matchany(int r_len, regex* regexp, char *text);
 
 /*** the matching code ***/
 //search for regexp anywhere in text
@@ -127,7 +133,8 @@ int matchhere(int r_len, regex* regexp, char *text) {
 				return matchhere(r_len-1, regexp+1, text+1);
 			else break;
 		case R_ANY_CHAR:
-			return matchhere(r_len-1, regexp+1, text+1);
+			return matchany(r_len, regexp,text);
+//			return matchhere(r_len-1, regexp+1, text+1);
 		default:
 			if (*text == '\0') return 0;
 			else return -1;
@@ -169,7 +176,7 @@ int matchplus(int r_len, regex* regexp, char *text) {
 //search for c*regexp at beginning of text
 //this is the shortest left-most wildcard match
 int matchstar(int r_len, regex* regexp, char *text) {
-	printf("*(%c) l[%d]\t[%s]\n", regexp[0].character, r_len, text);
+	printf("*(%c)\t[%s]\n", regexp[0].character, text);
 	do { //a * matches zero or more instances
 		if (matchhere(r_len-1,regexp+1,text)) {
 			printf("<!*!>\n");
@@ -192,6 +199,22 @@ int long_matchstar(int r_len, regex* regexp, char *text) {
 	return 0;
 }
 */
+int matchany(int r_len, regex* regexp, char *text) {
+	printf(".&#(%c)\t[%s]\n", regexp[0].character, text);
+	if (regexp[0].modifier == M_digit) {
+		if (isdigit(*text++))
+			return matchhere(r_len-1, regexp+1, text);
+	}
+	else if (regexp[0].modifier == M_digit) {
+		if (isalpha(*text++))
+			return matchhere(r_len-1, regexp+1, text);
+	}
+	else if (regexp[0].modifier == M_none) {
+		return matchhere(r_len-1, regexp+1, ++text);
+	}
+	//if all the above fail, ret 0
+	return 0;
+}
 
 //checks if the character is a symbol used for rules
 int isSymbol(int c) {
@@ -215,6 +238,12 @@ int isPreSymbol(int c) {
 int isAnchor(int c) {
 	for (int a = 0; a < anchor_len; a++)
 		if (c == anchor_symbols[a])
+			return 1;
+	return 0;
+}
+int isSubstitute(int c) {
+	for (int a = 0; a < substitute_len; a++)
+		if (c == substitute_symbols[a])
 			return 1;
 	return 0;
 }
@@ -280,8 +309,12 @@ regex* regex_to_code(char* regexp) {
 			rvalue[regex_count].rule = (c == '^') ? R_BEGINNING : R_END;
 			rvalue[regex_count++].character = c;
 		}
-		else if (c == '.') {
+		else if (isSubstitute(c)) {
 		//	printf("ANY_CHAR\n");
+			if (c == '#')
+				rvalue[regex_count].modifier = M_digit;
+			else if (c == '&')
+				rvalue[regex_count].modifier = M_letter;
 			rvalue[regex_count].rule = R_ANY_CHAR;
 			rvalue[regex_count++].character = c;
 		}
@@ -345,7 +378,7 @@ int main(int argc, char* argv[]) {
 		}
 		else if (isAnchor(regexpr[a]))
 			r_len++;
-		else if (regexpr[a] == '.')
+		else if (isSubstitute(regexpr[a]))
 			r_len++;
 		else
 			r_len++;
