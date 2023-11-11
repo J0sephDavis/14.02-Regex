@@ -10,7 +10,10 @@
  * * matches zero or more occurrences of the previous character
  *  + matches one or more occurrences of previous character
  *  ? zero or ONE matches
- *  \ negates a rule-character(meta-char) to stand for literal
+ *  \ escapes a rule-character(meta-char) to stand for literal
+ *  # matches a digit
+ *  & matches a letter
+ *
  */
 //data structures
 enum rules { //each one matches the rules, declared above, in order
@@ -31,10 +34,22 @@ const char* rule_names[8] = {
 	"PLUS",
 	"BINARY",
 };
+enum modifiers {
+	M_none = 0,
+	M_literal,
+	M_digit,
+	M_letter,
+};
+const char* modifier_names[4]  = {
+	"none",
+	"literal",
+	"digit",
+	"letter"
+};
 typedef struct regex {
 	int rule; 	//the type of function this represents?
 	char character; 	//the character itself
-	int is_literal; 	//could probably save some space by using byte masks...
+	int modifier; 	//could probably save some space by using byte masks...
 } regex;
 
 /*** global symbols ***/
@@ -124,7 +139,7 @@ int matchhere(int r_len, regex* regexp, char *text) {
 int matchoptional(int r_len, regex* regexp, char *text) {
 	printf("?(%c) l[%d]\t[%s]\n", regexp[0].character, r_len, text);
 	//if we find the symbol we're looking for, increase the index of the row
-	if (regexp[0].is_literal == 1) {
+	if (regexp[0].modifier == M_literal) {
 		if (*text == regexp[0].character)
 			text+=1;
 	}
@@ -142,7 +157,7 @@ int matchplus(int r_len, regex* regexp, char *text) {
 	while(*text != '\0'
 			&&
 				(*text++ == regexp[0].character
-				 	|| regexp[0].is_literal == 0))
+				 	|| regexp[0].modifier != M_literal))
 	{
 		if (matchhere(r_len-1, regexp+1, text)) {
 			printf("<!+!>\n");
@@ -161,7 +176,7 @@ int matchstar(int r_len, regex* regexp, char *text) {
 			return 1;
 		}
 		printf("[SB]");
-	} while(*text != '\0' && ((regexp[0].character == *text++) || (regexp[0].is_literal == 0)));
+	} while(*text != '\0' && ((regexp[0].character == *text++) || (regexp[0].modifier != M_literal)));
 	return 0;
 }
 /*
@@ -227,48 +242,51 @@ regex* regex_to_code(char* regexp) {
 	regex* rvalue = malloc(sizeof(regex) * strlen(regexp));
 	for (a = 0; regexp[a] != '\0'; a++) {
 		int c = regexp[a];
-		rvalue[regex_count].is_literal = 0;
-		printf("--%d-%c--\n",a,c);
+		rvalue[regex_count].modifier = M_none;
+		//printf("--%d|%c| [%s] |%ld| --\n",a,c,&regexp[a],strlen(regexp)-a);
 		//if we dealing with a literal + function
-		if (strlen(regexp) > 3 && isPreSymbol(regexp[a]) && isPostSymbol(regexp[a+2])) {
-				printf("LITERAL+FUNC SYMBOL\n");
-				rvalue[regex_count].is_literal = 1;
+		if (strlen(regexp)-a >= 3 && isPreSymbol(regexp[a]) && isPostSymbol(regexp[a+2])) {
+			//	printf("LITERAL+FUNC SYMBOL\n");
+				rvalue[regex_count].modifier = M_literal;
 				if (regexp[a+1] =='\0'){
 					printf("ERROR !!!!\n");
+					free(rvalue);
 					return NULL;	
 				}
 				rvalue[regex_count].character = regexp[a+1];
-				rvalue[regex_count].rule = char_to_rule(regexp[a+2]);
+				rvalue[regex_count++].rule = char_to_rule(regexp[a+2]);
+				a+=2;
 		}
 		else if (isPreSymbol(c)) {
-			printf("LITERAL SYMBOL\n");
+		//	printf("LITERAL SYMBOL\n");
 			if (regexp[a+1] =='\0'){
 				printf("ERROR !!!!\n");
+				free(rvalue);
 				return NULL;
 			}
 			rvalue[regex_count].rule = R_CHAR;
-			rvalue[regex_count].is_literal = 1;
+			rvalue[regex_count].modifier = M_literal;
 			rvalue[regex_count++].character = regexp[a+1];
-			continue;
+			a++;
 		}
 		else if (isPostSymbol(regexp[a+1])) {
-			printf("SYMBOL: %c\n", regexp[a+1]);
+		//	printf("SYMBOL: %c\n", regexp[a+1]);
 			rvalue[regex_count].rule = char_to_rule(regexp[a+1]);
 			rvalue[regex_count++].character = c;
 			a++;
 		}
 		else if (isAnchor(c)) {
-			printf("ANCHOR\n");
+		//	printf("ANCHOR\n");
 			rvalue[regex_count].rule = (c == '^') ? R_BEGINNING : R_END;
 			rvalue[regex_count++].character = c;
 		}
 		else if (c == '.') {
-			printf("ANY_CHAR\n");
+		//	printf("ANY_CHAR\n");
 			rvalue[regex_count].rule = R_ANY_CHAR;
 			rvalue[regex_count++].character = c;
 		}
 		else {
-			printf("CHAR\n");
+		//	printf("CHAR\n");
 			rvalue[regex_count].rule = R_CHAR;
 			rvalue[regex_count++].character = c;
 		}
@@ -306,32 +324,43 @@ int main(int argc, char* argv[]) {
 			*insertion_point++ = ' ';
 	}
 	//
+	printf("expr[%s]\ntext[%s]\n", regexpr,input_text);
+	//
 	regex* r_code = regex_to_code(regexpr);
 	if (r_code == NULL) return -1;
 	int r_len = 0;
+	//gets the length of the regex code array
 	for (a = 0; regexpr[a] != '\0'; a++) {
-		if (isPreSymbol(regexpr[a])) {
-			if (regexpr[a] == '\\') {
-				if (regexpr[a+1] =='\0')
-					printf("ERROR !!!!\n");
-				else
-					r_len++;
-			}
+		if (strlen(regexpr)-a >= 3 && isPreSymbol(regexpr[a]) && isPostSymbol(regexpr[a+2])) {
+			r_len++;
+			a+=2;
+		}
+		else if (isPreSymbol(regexpr[a])) {
+			a++;
+			r_len++;
 		}
 		else if (isPostSymbol(regexpr[a+1])) {
-			a++; //skip next symbol
+			a++;
 			r_len++;
 		}
-		else 		//covers both anchors & regular characters
+		else if (isAnchor(regexpr[a]))
+			r_len++;
+		else if (regexpr[a] == '.')
+			r_len++;
+		else
 			r_len++;
 	}
-	for (a = 0; a < r_len; a++) {
-		printf("%d:[%c][%s]\n", a, r_code[a].character, rule_names[r_code[a].rule]);
-	}
-	//
-	printf("expr[%s]\ntext[%s]\n", regexpr,input_text);
+	//prints out each regex value
+	for (a = 0; a < r_len; a++)
+		printf("%d:[%c][%s][%s]\n",
+				a,
+				r_code[a].character,
+				rule_names[r_code[a].rule],
+				modifier_names[r_code[a].modifier]
+		);
+	//call for the matching
 	printf(">%s\n", (match(r_len, r_code, input_text) == 1) ? "MATCH" : "NO MATCH");
-	//
+	//free all mallocs
 	free (r_code);
 	free(input_text);
 	free(regexpr);
