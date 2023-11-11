@@ -14,20 +14,27 @@
  */
 //data structures
 enum rules { //each one matches the rules, declared above, in order
-	R_CHAR = 1,
+	R_CHAR = 0,
 	R_ANY_CHAR,
-	R_ANCHOR,
-//	R_BEGINNING,
-//	R_END,
+	R_BEGINNING,
+	R_END,
 	R_STAR,
 	R_PLUS,
 	R_BINARY,
-	R_LITERAL
 };
-
+const char* rule_names[8] = {
+	"CHAR",
+	"ANY_CHAR",
+	"BEGIN",
+	"END",
+	"STAR",
+	"PLUS",
+	"BINARY",
+};
 typedef struct regex {
 	int rule; 	//the type of function this represents?
-	char literal; 	//the character itself
+	char character; 	//the character itself
+	int is_literal; 	//could probably save some space by using byte masks...
 } regex;
 
 /*** global symbols ***/
@@ -35,8 +42,8 @@ typedef struct regex {
 const int all_symbols_len = 7;
 const char *all_symbols = ".^$*+?\\";
 //postfix functions
-const int postfix_len = 5;
-const char *postfix_symbols = ".*+?\\";
+const char *postfix_symbols = "*+?";
+const int postfix_len = 3;
 //prefix functions
 const int prefix_len = 1;
 const char *prefix_symbols = "\\";
@@ -51,14 +58,13 @@ int isPreSymbol(int c);
 int isAnchor(int c);
 regex* regex_to_code(char* regexp);
 //general match
-int match(char* regexp, char *text);
-int matchhere(char* regexp, char *text);
+int match(int r_len, regex* regexp, char *text);
+int matchhere(int r_len, regex* regexp, char *text);
 //match rule
-int matchplus(int c, char* regexp, char *text);
-int matchstar(int c, char* regexp, char *text);
-int long_matchstar(int c, char* regexp, char *text);
-int matchbinary(int c, char *regexp, char *text);
-int matchliteral(int c, char *regexp, char *text);
+int matchplus(int r_len, regex* regexp, char *text);
+int matchstar(int r_len, regex* regexp, char *text);
+int long_matchstar(int r_len, regex* regexp, char *text);
+int matchoptional(int r_len, regex* regexp, char *text);
 
 /*** the matching code ***/
 //search for regexp anywhere in text
@@ -67,10 +73,10 @@ int matchliteral(int c, char *regexp, char *text);
  * is more than one match, it returns the leftmost &
  * shortest.
  */
-int match(char *regexp, char *text) {
+int match(int r_len, regex *regexp, char *text) {
 	//^ is the anchor to the lines start
-	if (regexp[0] == '^') { 		
-		return matchhere(regexp+1, text);
+	if (regexp[0].rule == R_BEGINNING) { 		
+		return matchhere(r_len-1,regexp+1, text);
 	}
 	//search the string, even if it is empty
 	//if it empty, it can be matched by a single '*'
@@ -78,65 +84,67 @@ int match(char *regexp, char *text) {
 	do {
 		printf("---------------------\n");
 		//matches against text shift along each char(text++ moves us down)
-		if (matchhere(regexp,text))
+		if (matchhere(r_len,regexp,text))
 			return 1;
 	} while (*text++ != '\0'); //if this is the end of the string, don't try another loop
 	return 0;
 }
 
 //search for regexp at beginning of text
-int matchhere(char *regexp, char *text) {
-	printf("here: [%s]\t[%s]\n", regexp, text);
+int matchhere(int r_len, regex* regexp, char *text) {
+	printf("here: [%c] [%s]\t[%s]\n", regexp[0].character, rule_names[regexp[0].rule], text);
 	//if we have reached the end of the string,
 	//all previous test must've succeeded.
 	//Thus, the regex matches on the text (return 1)
-	if (regexp[0] == '\0')
+	if (r_len == 0)
 		return 1;
-	//if the current character is a back-slash & the next character is a symbol
-	//only match the symbol
-	if (regexp[0] == '\\' && isPostSymbol(regexp[1]))
-		return matchliteral(regexp[1], regexp+2, text);
-	//if the regex is a character followed by a *, call matchstar to see whether the closure matches
-	if (regexp[1] == '*')
-		return matchstar(regexp[0], regexp+2, text);
-	//if this is a char followed by a *, we call matchplus
-	if (regexp[1] == '+') {
-		return matchplus(regexp[0], regexp+2, text);
+	switch (regexp[0].rule) {
+		case R_STAR:
+			return matchstar(r_len,regexp, text);
+		case R_PLUS:
+			return matchplus(r_len, regexp, text);
+		case R_BINARY:
+			return matchoptional(r_len, regexp, text);
+		case R_END:
+			return (r_len == 1 && *text == '\0');
+		case R_CHAR:
+			if (regexp[0].character == *text)
+				return matchhere(r_len-1, regexp+1, text+1);
+			else break;
+		case R_ANY_CHAR:
+			return matchhere(r_len-1, regexp+1, text+1);
+		default:
+			if (*text == '\0') return 0;
+			else return -1;
 	}
-
-	if (regexp[1] == '?') {
-		return matchbinary(regexp[0], regexp+2, text);
-	}
-	//if the expr is a line-end anchor at the end of the expression.
-	//then the text can only match if it is the end of the text
-	if (regexp[0] == '$' && regexp[1] == '\0')
-		return *text == '\0';
-	//if we are not at the end of the line,
-	//and the firt char of the expr matches
-	//the first char of the text.
-	//Begin recursion from the next char of both the text & the regex
-	if (*text!='\0' && (regexp[0] == '.' || regexp[0] == *text))
-		return matchhere(regexp+1, text+1);
 	//if all the previous matches failed, there can be no matchs
 	return 0;
 }
 
-int matchbinary(int c, char *regexp, char *text) {
-	printf("?(%c): [%s]\t[%s]\n", c, regexp, text);
+int matchoptional(int r_len, regex* regexp, char *text) {
+	printf("?(%c) l[%d]\t[%s]\n", regexp[0].character, r_len, text);
 	//if we find the symbol we're looking for, increase the index of the row
-	if ((c == '.' && isalpha(*text)) || (*text == c)) {
+	if (regexp[0].is_literal == 1) {
+		if (*text == regexp[0].character)
+			text+=1;
+	}
+	else if (regexp[0].character == '.'){
 		text+=1;
 	}
 	//if we didn't find the symbol, don't move the text
-	return matchhere(regexp, text);
+	return matchhere(r_len-1,regexp+1, text);
 
 }
 
 //match one or more occurences of the character
-int matchplus(int c, char *regexp, char *text) {
-	printf("+(%c): [%s]\t[%s]\n", c, regexp, text);
-	while(*text != '\0' && (*text++ == c || c == '.')) {
-		if (matchhere(regexp, text)) {
+int matchplus(int r_len, regex* regexp, char *text) {
+	printf("+(%c) l[%d]\t[%s]\n", regexp[0].character, r_len, text);
+	while(*text != '\0'
+			&&
+				(*text++ == regexp[0].character
+				 	|| regexp[0].is_literal == 0))
+	{
+		if (matchhere(r_len-1, regexp+1, text)) {
 			printf("<!+!>\n");
 			return 1;		
 		}
@@ -145,19 +153,20 @@ int matchplus(int c, char *regexp, char *text) {
 }
 //search for c*regexp at beginning of text
 //this is the shortest left-most wildcard match
-int matchstar(int c, char *regexp, char *text) {
-	printf("*(%c): [%s]\t[%s]\n", c, regexp, text);
+int matchstar(int r_len, regex* regexp, char *text) {
+	printf("*(%c) l[%d]\t[%s]\n", regexp[0].character, r_len, text);
 	do { //a * matches zero or more instances
-		if (matchhere(regexp,text)) {
+		if (matchhere(r_len-1,regexp+1,text)) {
 			printf("<!*!>\n");
 			return 1;
 		}
 		printf("[SB]");
-	} while(*text != '\0' && (*text++ == c || c == '.'));
+	} while(*text != '\0' && ((regexp[0].character == *text++) || (regexp[0].is_literal == 0)));
 	return 0;
 }
+/*
 //the longest left-most wildcard match
-int long_matchstar(int c, char *regexp, char *text) {
+int long_matchstar(int r_len, regex* regexp, char *text) {
 	char *t;
 	for (t = text; *t != '\0' && (*t == c || c == '.'); t++);
 
@@ -167,18 +176,7 @@ int long_matchstar(int c, char *regexp, char *text) {
 	} while(t-- > text);
 	return 0;
 }
-
-int matchliteral(int c, char *regexp, char *text) {
-	printf("\\(%c): [%s]\t[%s]\n", c, regexp, text);
-	if (regexp[0] == '*')
-		return matchstar(c, regexp+1, ++text);
-	if (regexp[0] == '+')
-		return matchplus(c, regexp+1, ++text);
-	if (regexp[0] == '?')
-		return matchbinary(c, regexp+1, ++text);
-	if (*text == c) return matchhere(regexp, ++text);
-	return 0;
-}
+*/
 
 //checks if the character is a symbol used for rules
 int isSymbol(int c) {
@@ -205,7 +203,22 @@ int isAnchor(int c) {
 			return 1;
 	return 0;
 }
-
+int char_to_rule(int c) {
+	switch(c) {
+		case('*'):
+			return R_STAR;
+		case('+'):
+			return R_PLUS;
+		case('?'):
+			return R_BINARY;
+		case('^'):
+			return R_BEGINNING;
+		case('$'):
+			return R_END;
+		default:
+			return R_CHAR;
+	}
+}
 regex* regex_to_code(char* regexp) {
 	if (regexp == NULL) //if we receive nothing, give noting
 		return NULL;
@@ -214,41 +227,50 @@ regex* regex_to_code(char* regexp) {
 	regex* rvalue = malloc(sizeof(regex) * strlen(regexp));
 	for (a = 0; regexp[a] != '\0'; a++) {
 		int c = regexp[a];
+		rvalue[regex_count].is_literal = 0;
 		printf("--%d-%c--\n",a,c);
-		if (isPreSymbol(regexp[a])) {
-			if (regexp[a] == '\\') {
+		//if we dealing with a literal + function
+		if (strlen(regexp) > 3 && isPreSymbol(regexp[a]) && isPostSymbol(regexp[a+2])) {
+				printf("LITERAL+FUNC SYMBOL\n");
+				rvalue[regex_count].is_literal = 1;
 				if (regexp[a+1] =='\0'){
 					printf("ERROR !!!!\n");
-					return NULL;
+					return NULL;	
 				}
-				printf("LITERAL SYMBOL\n");
-				rvalue[regex_count].rule = R_LITERAL;
-				rvalue[regex_count++].literal = regexp[a+1];
-				continue;
+				rvalue[regex_count].character = regexp[a+1];
+				rvalue[regex_count].rule = char_to_rule(regexp[a+2]);
+		}
+		else if (isPreSymbol(c)) {
+			printf("LITERAL SYMBOL\n");
+			if (regexp[a+1] =='\0'){
+				printf("ERROR !!!!\n");
+				return NULL;
 			}
+			rvalue[regex_count].rule = R_CHAR;
+			rvalue[regex_count].is_literal = 1;
+			rvalue[regex_count++].character = regexp[a+1];
+			continue;
 		}
 		else if (isPostSymbol(regexp[a+1])) {
 			printf("SYMBOL: %c\n", regexp[a+1]);
-			if (c == '*')
-				rvalue[regex_count].rule = R_STAR;
-			else if (c == '+')
-				rvalue[regex_count].rule = R_PLUS;
-			else if (c == '?')
-				rvalue[regex_count].rule = R_BINARY;
-			else if (c == '.')
-				rvalue[regex_count].rule = R_ANY_CHAR;
-			rvalue[regex_count++].literal = c;
-			a++; //skip next symbol
+			rvalue[regex_count].rule = char_to_rule(regexp[a+1]);
+			rvalue[regex_count++].character = c;
+			a++;
 		}
 		else if (isAnchor(c)) {
 			printf("ANCHOR\n");
-			rvalue[regex_count].rule = R_ANCHOR;
-			rvalue[regex_count++].literal = c;
+			rvalue[regex_count].rule = (c == '^') ? R_BEGINNING : R_END;
+			rvalue[regex_count++].character = c;
+		}
+		else if (c == '.') {
+			printf("ANY_CHAR\n");
+			rvalue[regex_count].rule = R_ANY_CHAR;
+			rvalue[regex_count++].character = c;
 		}
 		else {
 			printf("CHAR\n");
 			rvalue[regex_count].rule = R_CHAR;
-			rvalue[regex_count++].literal = c;
+			rvalue[regex_count++].character = c;
 		}
 	}
 	return rvalue; //default
@@ -283,8 +305,6 @@ int main(int argc, char* argv[]) {
 		if ((a+1) < argc)
 			*insertion_point++ = ' ';
 	}
-	printf("expr[%s]\ntext[%s]\n", regexpr,input_text);
-	printf(">%s\n", (match(regexpr, input_text) == 1) ? "MATCH" : "NO MATCH");
 	//
 	regex* r_code = regex_to_code(regexpr);
 	if (r_code == NULL) return -1;
@@ -306,10 +326,13 @@ int main(int argc, char* argv[]) {
 			r_len++;
 	}
 	for (a = 0; a < r_len; a++) {
-		printf("%d:[%c][%d]\n", a, r_code[a].literal, r_code[a].rule);
+		printf("%d:[%c][%s]\n", a, r_code[a].character, rule_names[r_code[a].rule]);
 	}
-	free (r_code);
 	//
+	printf("expr[%s]\ntext[%s]\n", regexpr,input_text);
+	printf(">%s\n", (match(r_len, r_code, input_text) == 1) ? "MATCH" : "NO MATCH");
+	//
+	free (r_code);
 	free(input_text);
 	free(regexpr);
 	return 0;
