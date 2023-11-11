@@ -7,12 +7,19 @@
  * ^ matches beginning of the input string
  * $ matches the end of the input string
  * * matches zero or more occurrences of the previous character
+ * --ADDITONAL RULES--
+ --> currently working on *  + matches one or more occurrences of previous character
+ *  ? zero or one matches
+ *  \ negates a rule-character(meta-char) to stand for literal
  */
 /*** prototypes ***/
-int matchstar(int c, char* regexp, char *text);
-int long_matchstar(int c, char* regexp, char *text);
+//general match
 int match(char* regexp, char *text);
 int matchhere(char* regexp, char *text);
+//match rule
+int matchplus(int c, char* regexp, char *text);
+int matchstar(int c, char* regexp, char *text);
+int long_matchstar(int c, char* regexp, char *text);
 
 /*** the matching code ***/
 //search for regexp anywhere in text
@@ -30,6 +37,7 @@ int match(char *regexp, char *text) {
 	//if it empty, it can be matched by a single '*'
 	//thus, the do-while loop instead of a while loop
 	do {
+		printf("-\n");
 		//matches against text shift along each char(text++ moves us down)
 		if (matchhere(regexp,text))
 			return 1;
@@ -39,6 +47,7 @@ int match(char *regexp, char *text) {
 
 //search for regexp at beginning of text
 int matchhere(char *regexp, char *text) {
+	printf("here: [%s] [%s]\n", regexp, text);
 	//if we have reached the end of the string,
 	//all previous test must've succeeded.
 	//Thus, the regex matches on the text (return 1)
@@ -46,7 +55,14 @@ int matchhere(char *regexp, char *text) {
 		return 1;
 	//if the regex is a character followed by a *, call matchstar to see whether the closure matches
 	if (regexp[1] == '*')
+	{
+		printf("matchstar!");
 		return matchstar(regexp[0], regexp+2, text);
+	}
+	//if this is a char followed by a *, we call matchplus
+	if (regexp[1] == '+') {
+		return matchplus(regexp[0], regexp+2, text);
+	}
 	//if the expr is a line-end anchor at the end of the expression.
 	//then the text can only match if it is the end of the text
 	if (regexp[0] == '$' && regexp[1] == '\0')
@@ -60,13 +76,27 @@ int matchhere(char *regexp, char *text) {
 	//if all the previous matches failed, there can be no matchs
 	return 0;
 }
-
+//match one or more occurences of the character
+int matchplus(int c, char *regexp, char *text) {
+	printf("PLUS: [%c] [%s] [%s]\n", c, regexp, text);
+	while(*text != '\0' && (*text++ == c || c == '.')) {
+		if (matchhere(regexp, text)) {
+			printf("[+R]");
+			return 1;		
+		}
+	}
+	return 0;
+}
 //search for c*regexp at beginning of text
 //this is the shortest left-most wildcard match
 int matchstar(int c, char *regexp, char *text) {
+	printf("STAR: [%c] [%s] [%s]\n", c, regexp, text);
 	do { //a * matches zero or more instances
- 		if (matchhere(regexp,text))
+		if (matchhere(regexp,text)) {
+			printf("[SR] ");
 			return 1;
+		}
+		printf("[SB]");
 	} while(*text != '\0' && (*text++ == c || c == '.'));
 	return 0;
 }
@@ -92,7 +122,7 @@ int main(int argc, char* argv[]) {
 	//get regexpr
 	regexpr = malloc(strlen(argv[2]));
 	if (regexpr == NULL) return -1;
-	strncpy(regexpr, argv[1], strlen(argv[2]));
+	strncpy(regexpr, argv[1], strlen(argv[1]));
 	//get input_text
 	int len = 0;
 	int a;
