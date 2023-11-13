@@ -18,7 +18,19 @@ enum rules {
 	R_PLUS,
 	R_OPT,
 };
-
+/** 	      prototypes 	        **/
+regex re_create(int, int);
+void re_destroy(regex);   
+int re_gRule(regex instance);
+void re_setRule(regex, int);
+int re_gLiteral(regex);
+regex re_getNext(regex);
+void re_setNext(regex, regex);
+int re_getChildren(regex);
+void re_addChild(regex, regex);
+regex re_getChild(regex, int);
+void re_print(regex);
+//
 regex re_create(int _rule, int _literal) {
 	regex instance = calloc(1, sizeof(struct regex_t));
 	instance->rule = _rule;
@@ -28,6 +40,7 @@ regex re_create(int _rule, int _literal) {
 	return instance;
 }
 void re_destroy(regex instance) {
+	printf("FREE:"); re_print(instance); printf("\n");
 	free(instance);
 }
 int re_gRule(regex instance) {
@@ -53,7 +66,7 @@ void re_addChild(regex instance, regex child) {
 		instance->children = calloc(1, sizeof(struct regex_t**));
 	}
 	else { 					//if there are some children, reallocate
-		instance->children = realloc(instance->children, sizeof(struct regex_t**) * (instance->c_count)+1);
+		instance->children = realloc(instance->children, sizeof(struct regex_t**) * (instance->c_count+1));
 	}
 	instance->children[instance->c_count++] = child;
 }
@@ -317,7 +330,7 @@ regex re_create_f_str(char* regexp) {
 int main(int argc, char** argv) {
 	int a; 				//iterator
 	int input_len = 0; 			//the length of the input string, for malloc
-	char* regex_expression; 	//the regex given by input
+	char* regex_expression = NULL; 	//the regex given by input
 	char* input_text = NULL; 	//the text to find a match in
 	char* input_anchor = NULL; 	//pointer to somewhere in input_text
 	//
@@ -330,7 +343,7 @@ int main(int argc, char** argv) {
 		input_len += strlen(argv[a]);
 	input_len += (argc-2); 		//because spaces are considered separators
 					//we have to add them back in.
-	input_text = malloc(input_len);
+	input_text = calloc(1,input_len); //calloc to initialize memory to 0. unsure of the importance, but valgrind wasn't happy without it
 //set input text
 	input_anchor = input_text; //set the anchor to the beginning of the input text
 	for (a = 2; a < argc; a++) { 			//for-each arg after 1
@@ -359,5 +372,16 @@ int main(int argc, char** argv) {
 		
 	}
 	printf("%s\n", (match(regexpr, input_text))? "match" : "no match");
-
+	instance = regexpr;
+	while(instance) {
+		regex next_inst= re_getNext(instance);
+		int children = re_getChildren(instance);
+		for (int b = 0 ; b < children; b++) {
+			if (re_getChildren(re_getChild(instance,b)) != 0) printf("WARNING PARENT->CHILD->CHILD, NOT FREED\n");
+			re_destroy(re_getChild(instance,b));
+		}
+		re_destroy(instance);
+		instance = next_inst;
+	}
+	free(input_text);
 }
