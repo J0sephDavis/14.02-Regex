@@ -18,6 +18,12 @@ enum rules {
 	R_PLUS,
 	R_OPT,
 };
+char* rules_names[] = {
+	"char",
+	"star",
+	"plus",
+	"opt"
+};
 /** 	      prototypes 	        **/
 regex re_create(int, int);
 void re_destroy(regex);   
@@ -40,7 +46,7 @@ regex re_create(int _rule, int _literal) {
 	return instance;
 }
 void re_destroy(regex instance) {
-	printf("FREE:"); re_print(instance); printf("\n");
+	//printf("FREE:"); re_print(instance); printf("\n");
 	free(instance);
 }
 int re_gRule(regex instance) {
@@ -79,8 +85,8 @@ regex re_getChild(regex instance, int index) {
 }
 void re_print(regex instance) {
 	if (instance)
-		printf("[Rule: %d | Literal: %c | Next? : %s | Children: %d]",
-				instance->rule, instance->literal,
+		printf("[Rule: %s | Literal: %c | Next? : %s | Children: %d]",
+				rules_names[instance->rule], instance->literal,
 				(instance->next) ? "Yes" : "No",
 				re_getChildren(instance));
 	else printf("[-]");
@@ -183,7 +189,7 @@ bool m_plus(regex instance, char* text) {
 }
 //match a children zero or many times
 bool m_parent_star(regex parent, char* text) {
-	printf("PARENT STAR\n");
+	printf("mp_star\n");
 	int child_index = 0;
 	int total_children = re_getChildren(parent);
 	for (child_index = 0; child_index < total_children; child_index++) {
@@ -191,22 +197,42 @@ bool m_parent_star(regex parent, char* text) {
 		regex child = re_getChild(parent, child_index);
 		do {
 			if(m_here(child, tmp_text))
-				return 1;
-		}  while(*text != '\0' && m_char(child,text));
+				return true;
+		}  while(*tmp_text != '\0' && m_char(child,tmp_text++));
 	}
 	return false;
 }
-bool m_parent_char(regex instance, char* text) {
-	printf("PARENT CHAR\n");
-	return (instance != NULL && text != NULL);
+bool m_parent_char(regex parent, char* text) {
+	printf("mp_char\n");
+	int total_children = re_getChildren(parent);
+	for (int child_index = 0; child_index < total_children; child_index++){
+		regex child = re_getChild(parent, child_index);
+		if (m_here(child,text))
+			return true;
+	};
+	return false;
 }
-bool m_parent_plus(regex instance, char* text) {
-	printf("PARENT PLUS\n");
-	return (instance != NULL && text != NULL);
+bool m_parent_plus(regex parent, char* text) {
+	printf("mp_plus\n");
+	int total_children = re_getChildren(parent);
+	for (int child_index = 0; child_index < total_children; child_index++) {
+		regex child = re_getChild(parent, child_index);
+		while (*text != '\0') {
+			if (m_here(child,text))
+				return true;
+		}
+		return false;
+	}
+	return (parent != NULL && text != NULL);
 }
-bool m_parent_optional(regex instance, char* text) {
-	printf("PARENT OPT\n");
-	return (instance != NULL && text != NULL);
+bool m_parent_optional(regex parent, char* text) {
+	printf("mp_opt\n");
+	int total_children = re_getChildren(parent);
+	for (int a = 0; a < total_children; a++ ) {
+		if (m_here(re_getChild(parent, a),text))
+			return true;
+	}
+	return m_here(re_getNext(parent), text);
 }
 /*** 				regex compilation 				    ***/
 regex re_create_f_str(char* regexp) {
@@ -220,20 +246,24 @@ regex re_create_f_str(char* regexp) {
 	int a; 					//iterator
 	bool in_parent = false; 		//is the character string still inside the parentheses?
 //iterate over all the passed characters
+	const bool print_info = false;
 	for (a = 0; regexp[a] != '\0'; a++) {
 		//print information
-//		printf("-------------------------------\n");
-//		if (parent_node)
-//			{printf("PARENT:\t"); re_print(parent_node); printf("\n"); }
-//		if (last_node)
-//			{printf("LAST:\t"); re_print(last_node); printf("\n"); }
-//		printf("EXPR:\t[%s]-\n", regexp+a);
+		if (print_info) {
+			printf("-------------------------------\n");
+			if (parent_node)
+				{printf("PARENT:\t"); re_print(parent_node); printf("\n"); }
+			if (last_node)
+				{printf("LAST:\t"); re_print(last_node); printf("\n"); }
+			printf("EXPR:\t[%s]-\n", regexp+a);
+		}
 		rule = R_CHAR;
 		literal = regexp[a];
 //if the current regex char, modifies the LAST node.
 //we 'continue' after each call because we aren't making a new regex
 		if (!in_parent && parent_node) { 	//meaning we found a ')' last iteration,
-//			printf(">ready to apply rule to parent\n");
+			if (print_info)
+				printf(">ready to apply rule to parent\n");
 			//STAR
 			if (regexp[a] == '*') {
 				re_setRule(parent_node, R_STAR);
@@ -252,7 +282,8 @@ regex re_create_f_str(char* regexp) {
 			
 		}
 		else {
-//			printf(">read to apply rule to LAST\n");
+			if (print_info)
+				printf(">read to apply rule to LAST\n");
 			//STAR
 			if (regexp[a] == '*') {
 				re_setRule(last_node, R_STAR);
@@ -269,44 +300,62 @@ regex re_create_f_str(char* regexp) {
 				continue;
 			}
 		}
-//		printf(">NO RULES APPLIED\n");
+		if (print_info)
+			printf(">NO RULES APPLIED\n");
 //else if BRACE,
 		//if we aren't in a parent & find the opening
 		//set parent to true & continue
 		if (!in_parent && regexp[a] == '(') {
-//			printf(">in_parent = TRUE\n");
+			if (print_info)
+				printf(">in_parent = TRUE\n");
 			in_parent = true;
 		}
 		else if (in_parent && regexp[a] == ')') {
-//			printf(">in_parent = FALSE\n");
+			if (print_info)
+				printf(">in_parent = FALSE\n");
 			in_parent = false;
 			continue; //skip to the next entry so we can link the children to the new
 		}
 //create character regex
 		regex tmp_re = re_create(rule,literal);
-//		printf(">SPAWNED: "); re_print(tmp_re); printf("\n");
+		if(print_info) {
+			printf(">SPAWNED: "); re_print(tmp_re); printf("\n");
+		}
 //if FIRST, set the first node
 		if (!first_node) {
-//			printf(">A:!first_node\n");
+			if(print_info) {
+				printf(">A:!first_node");
+				if (in_parent && !parent_node) {
+					printf(" && in_parent && !parent_node: set parent & first & last\n");
+				}
+				else
+					printf(": set first & last\n");
+			}
 			first_node = tmp_re;
 			last_node = tmp_re;
+			if (in_parent && !parent_node){
+				parent_node = tmp_re;
+			}
 			continue;
 		}
 //if in_parent, but an orphan. set parent
 		if (in_parent && !parent_node) {
-//			printf(">B:in_parent && !parent_node\n");
+			if (print_info)
+				printf(">B:in_parent && !parent_node: set parent\n");
 			parent_node = tmp_re;
 			re_setNext(last_node, parent_node);
 		}
 //if in_parent, add new regex to parent
 		else if (in_parent && parent_node) {
-//			printf(">C:in_parent && parent_node\n");
-//			printf("- ADD CHILD");
+			if(print_info) {
+				printf(">C:in_parent && parent_node: add child\n");
+			}
 			re_addChild(parent_node, tmp_re);
 		}
 //if !in_parent, with parent_node set. Link the children to the new-node
 		else if (!in_parent && parent_node) {
-//			printf(">D:!in_parent && parent_node\n");
+			if (print_info)
+				printf(">D:!in_parent && parent_node: link children\n");
 			for (int b = 0; b < re_getChildren(parent_node); b++) {
 				re_setNext(re_getChild(parent_node, b), tmp_re);
 				if (rule != R_CHAR) re_setRule(re_getChild(parent_node, b), rule);
@@ -316,7 +365,8 @@ regex re_create_f_str(char* regexp) {
 		}
 //else, add new regex to last->next.
 		else { 
-//			printf(">E: linking last_node to new node\n");
+			if(print_info)
+				printf(">E: linking last_node to new node\n");
 			re_setNext(last_node, tmp_re);
 		}
 		last_node = tmp_re;
