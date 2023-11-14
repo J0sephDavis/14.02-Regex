@@ -10,13 +10,18 @@ struct regex_t {
 	struct regex_t* next;
 	int c_count; //count of children
 	struct regex_t** children;
+	//char* list of symbols to find a match in? possibly the SEQUENCE of characters(i.e., word) to find a match for first..
 };
 typedef struct regex_t* regex;
+//the rules that change functionality
+//some rules such as using a "\" to indicate a symbol is literal,
+//are handled during compilation & thus don't need a named rule.
 enum rules {
 	R_CHAR = 0,
 	R_STAR,
 	R_PLUS,
 	R_OPT,
+	//R_WILD -> might be handled by like 27 regex children to an element? Or a char* of all the valid characters
 };
 char* rules_names[] = {
 	"char",
@@ -24,6 +29,8 @@ char* rules_names[] = {
 	"plus",
 	"opt"
 };
+//the symbols for every rule (besides a character...)
+char* rule_symbols = "*+?\\";
 /** 	      prototypes 	        **/
 regex re_create(int, int);
 void re_destroy(regex);   
@@ -202,6 +209,7 @@ bool m_parent_star(regex parent, char* text) {
 	}
 	return false;
 }
+//returns true if the match for each 
 bool m_parent_char(regex parent, char* text) {
 	printf("mp_char\n");
 	int total_children = re_getChildren(parent);
@@ -212,6 +220,7 @@ bool m_parent_char(regex parent, char* text) {
 	};
 	return false;
 }
+//match a child one or more times. if none of the children match once or more, return false
 bool m_parent_plus(regex parent, char* text) {
 	printf("mp_plus\n");
 	int total_children = re_getChildren(parent);
@@ -225,6 +234,7 @@ bool m_parent_plus(regex parent, char* text) {
 	}
 	return (parent != NULL && text != NULL);
 }
+//returns true if the match at the next element is valid or if any of the children are valid
 bool m_parent_optional(regex parent, char* text) {
 	printf("mp_opt\n");
 	int total_children = re_getChildren(parent);
@@ -245,8 +255,10 @@ regex re_create_f_str(char* regexp) {
 	int rule; 				//stores the current rule
 	int a; 					//iterator
 	bool in_parent = false; 		//is the character string still inside the parentheses?
+	bool last_backslash = false; 		//isntead of using a regexp[a] == '\' && regexp[a+1] == symbol... we just set a flag. probably inefficient
 //iterate over all the passed characters
 	const bool print_info = false;
+	//we could handle this without a for loop, a while loop(or do-while) that increments the *regexp will work just as well
 	for (a = 0; regexp[a] != '\0'; a++) {
 		//print information
 		if (print_info) {
@@ -281,7 +293,7 @@ regex re_create_f_str(char* regexp) {
 			}
 			
 		}
-		else {
+		else if (!last_backslash) {
 			if (print_info)
 				printf(">read to apply rule to LAST\n");
 			//STAR
@@ -299,6 +311,11 @@ regex re_create_f_str(char* regexp) {
 				re_setRule(last_node, R_OPT);
 				continue;
 			}
+		}
+		if (last_backslash) last_backslash = false;
+		else if (regexp[a] == '\\') {
+			last_backslash = true;
+			continue;
 		}
 		if (print_info)
 			printf(">NO RULES APPLIED\n");
