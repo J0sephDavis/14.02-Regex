@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 /***                           	  the regex class                                   ***/
 struct regex_t {
@@ -10,7 +11,6 @@ struct regex_t {
 	struct regex_t* next;
 	int c_count; //count of children
 	struct regex_t** children;
-	//char* list of symbols to find a match in? possibly the SEQUENCE of characters(i.e., word) to find a match for first..
 };
 typedef struct regex_t* regex;
 //the rules that change functionality
@@ -21,13 +21,18 @@ enum rules {
 	R_STAR,
 	R_PLUS,
 	R_OPT,
-	//R_WILD -> might be handled by like 27 regex children to an element? Or a char* of all the valid characters
+	R_DIGIT, 	//DIGIT - numbers 0-9
+	R_ALPHA, 	//ALPHA - letters a-zA-Z
+	R_ALPHANUMERIC, //ALPHANUMERIC - any letter or number
 };
 char* rules_names[] = {
 	"char",
 	"star",
 	"plus",
-	"opt"
+	"opt",
+	"digit",
+	"letter",
+	"alphanumeric"
 };
 /** 	      prototypes 	        **/
 regex re_create(int, int);
@@ -106,6 +111,10 @@ void re_print(regex instance) {
 /*                                            */bool m_plus(regex instance, char* text);
 /*                                            */bool m_optional(regex instance, char* text);
 
+/*                                            */bool m_alpha(regex instance, char* text);
+/*                                            */bool m_digit(regex instance, char* text);
+/*                                            */bool m_alphanum(regex instance, char* text);
+
 /*                                            */bool m_parent_char(regex instance, char* text);
 /*                                            */bool m_parent_star(regex instance, char* text);
 /*                                            */bool m_parent_plus(regex instance, char* text);
@@ -125,13 +134,6 @@ bool m_here(regex instance, char* text) {
 		return true; 		//were passed correctly
 	//process rules
 	int children = re_getChildren(instance);
-//	if (re_getChildren(instance) != 0) {
-//		for (int a = 0; a < re_getChildren(instance); a++) {
-//			if (m_here(re_getChild(instance,a), text))
-//				return true;
-//		}
-//		return false;
-//	}
 	switch(re_gRule(instance)) {
 		case (R_CHAR):
 			if (children == 0)
@@ -152,10 +154,14 @@ bool m_here(regex instance, char* text) {
 				return m_optional(instance, text);
 			else
 				return m_parent_optional(instance,text);
+		case (R_ALPHA):
+			return m_alpha(instance, text);
+		case (R_DIGIT):
+			return m_digit(instance, text);
 		default:
 			break;
 	}
-	//rules over
+
 	if (*text == '\0') 			//rules left, but no text left. FAIL
 		return false;
 	return false;
@@ -176,13 +182,6 @@ bool m_star(regex instance, char* text) {
 	} while (*text != '\0' && re_gLiteral(instance) == *text++);
 	return false;
 }
-//match ZERO or ONE times
-bool m_optional(regex instance, char* text) {
-	if (m_char(instance, text)) 		//if we find the character
-		return m_here(re_getNext(instance), text+1);
-	else 	//if we did not find the literal. Don't move text, but bring the regex forward
-		return m_here(re_getNext(instance), text);
-}
 //match one or more times
 bool m_plus(regex instance, char* text) {
 	printf("m_plus: "); re_print(instance); printf("%s\n", text);
@@ -191,6 +190,33 @@ bool m_plus(regex instance, char* text) {
 			return 1;
 	}
 	return 0;
+}
+//match ZERO or ONE times
+bool m_optional(regex instance, char* text) {
+	printf("m_opt: "); re_print(instance); printf("%s\n", text);
+	if (m_char(instance, text)) 		//if we find the character
+		return m_here(re_getNext(instance), text+1);
+	else 	//if we did not find the literal. Don't move text, but bring the regex forward
+		return m_here(re_getNext(instance), text);
+}
+//mathes an alphabetical character
+bool m_alpha(regex instance, char* text) {
+	printf("m_alpha: "); re_print(instance); printf("%s\n", text);
+	if (isalpha(*text))
+		return m_here(re_getNext(instance), text+1);
+	return false;
+}
+bool m_digit(regex instance, char* text) {
+	printf("m_digit: "); re_print(instance); printf("%s\n", text);
+	if (isdigit(*text))
+		return m_here(re_getNext(instance), text+1);
+	return false;
+}
+bool m_alphanum(regex instance, char* text) {
+	printf("m_alphanum: "); re_print(instance); printf("%s\n", text);
+	if (isalnum(*text))
+		return m_here(re_getNext(instance), text+1);
+	return false;
 }
 //match a children zero or many times
 bool m_parent_star(regex parent, char* text) {
@@ -224,7 +250,7 @@ bool m_parent_plus(regex parent, char* text) {
 	int total_children = re_getChildren(parent);
 	for (int child_index = 0; child_index < total_children; child_index++) {
 		regex child = re_getChild(parent, child_index);
-		while (*text != '\0') {
+		while (*text++ != '\0') {
 			if (m_here(child,text))
 				return true;
 		}
@@ -270,7 +296,7 @@ regex re_create_f_str(char* regexp) {
 		rule = R_CHAR;
 		literal = regexp[a];
 //if the current regex char, modifies the LAST node.
-//we 'continue' after each call because we aren't making a new regex
+//RULE APPLICATION
 		if (!in_parent && parent_node) { 	//meaning we found a ')' last iteration,
 			if (print_info)
 				printf(">ready to apply rule to parent\n");
@@ -309,6 +335,23 @@ regex re_create_f_str(char* regexp) {
 				re_setRule(last_node, R_OPT);
 				continue;
 			}
+			//R_DIGIT
+			else if (regexp[a] == '#') {
+				rule = R_DIGIT;
+				//we do not continue here, because is a SUBSTITUTION rule.
+				//Thus, it doesn't modify 'last_node'; but, is added
+				//as a REGEX itself.
+				//(similar to how the parent is always the '(' charater)
+			}
+			else if (regexp[a] == '&') {
+				rule = R_ALPHA;
+				//see comment in the previous if-statement for why we
+				//do not call continue
+			}
+			else if (regexp[a] == '.') {
+				rule = R_ALPHANUMERIC;
+			}
+
 		}
 		if (last_backslash) last_backslash = false;
 		else if (regexp[a] == '\\') {
