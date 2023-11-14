@@ -29,8 +29,6 @@ char* rules_names[] = {
 	"plus",
 	"opt"
 };
-//the symbols for every rule (besides a character...)
-char* rule_symbols = "*+?\\";
 /** 	      prototypes 	        **/
 regex re_create(int, int);
 void re_destroy(regex);   
@@ -173,10 +171,10 @@ bool m_char(regex instance, char* text) {
 bool m_star(regex instance, char* text) {
 	printf("m_star: "); re_print(instance); printf("%s\n", text);
 	do {
-		if (m_here(re_getNext(instance), text+1))
-			return 1;
+		if (m_here(re_getNext(instance), text))
+			return true;
 	} while (*text != '\0' && re_gLiteral(instance) == *text++);
-	return 0;
+	return false;
 }
 //match ZERO or ONE times
 bool m_optional(regex instance, char* text) {
