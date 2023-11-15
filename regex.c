@@ -269,6 +269,37 @@ bool m_parent_optional(regex parent, char* text) {
 	return m_here(re_getNext(parent), text);
 }
 /*** 				regex compilation 				    ***/
+//re_create_f_str:
+// 	processRule()
+// 	or
+// 	addNode()
+// 	or
+// 	addChildNode()
+int char_to_reptition_rule(char c) {
+	switch(c) {
+		case('*'):
+			return R_STAR;
+		case('?'):
+			return R_OPT;
+		case('+'):
+			return R_PLUS;
+	}
+	return -1;
+}
+int char_to_substitution_rule(char c) {
+	switch(c) {
+		case('.'):
+			return R_ALPHANUMERIC;
+		case('#'):
+			return R_DIGIT;
+		case('&'):
+			return R_ALPHA;
+	}
+	return -1;
+}
+void re_setRuleChar(regex instance, char c) {
+	instance->rule = char_to_reptition_rule(c);
+}
 regex re_create_f_str(char* regexp) {
 	if (regexp == NULL) 			//if we are given an empty string
 		return NULL; 			//return nothing
@@ -416,7 +447,6 @@ regex re_create_f_str(char* regexp) {
 				printf(">D:!in_parent && parent_node: link children\n");
 			for (int b = 0; b < re_getChildren(parent_node); b++) {
 				re_setNext(re_getChild(parent_node, b), tmp_re);
-				if (rule != R_CHAR) re_setRule(re_getChild(parent_node, b), rule);
 			}
 			re_setNext(parent_node, tmp_re);
 			parent_node = NULL;
