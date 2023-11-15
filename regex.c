@@ -249,14 +249,14 @@ bool m_parent_plus(regex parent, char* text) {
 	printf("mp_plus\n");
 	int total_children = re_getChildren(parent);
 	for (int child_index = 0; child_index < total_children; child_index++) {
+		char* tmp_text = text;
 		regex child = re_getChild(parent, child_index);
-		while (*text++ != '\0') {
-			if (m_here(child,text))
+		while (*tmp_text++ != '\0') {
+			if (m_here(child,tmp_text))
 				return true;
 		}
-		return false;
 	}
-	return (parent != NULL && text != NULL);
+	return false;
 }
 //returns true if the match at the next element is valid or if any of the children are valid
 bool m_parent_optional(regex parent, char* text) {
@@ -275,16 +275,21 @@ bool m_parent_optional(regex parent, char* text) {
 // 	addNode()
 // 	or
 // 	addChildNode()
-int char_to_reptition_rule(char c) {
+//if the character is a repetition rule, the RE's rule will be changed. otherwise it is not touched & false is returned
+bool re_char_to_reptition_rule(regex instance, char c) {
 	switch(c) {
 		case('*'):
-			return R_STAR;
+			re_setRule(instance,R_STAR);
+			return true;
 		case('?'):
-			return R_OPT;
+			re_setRule(instance,R_OPT);
+			return true;
 		case('+'):
-			return R_PLUS;
+			re_setRule(instance,R_PLUS);
+			return true;
+		default:
+			return false;
 	}
-	return -1;
 }
 int char_to_substitution_rule(char c) {
 	switch(c) {
@@ -295,14 +300,12 @@ int char_to_substitution_rule(char c) {
 		case('&'):
 			return R_ALPHA;
 	}
-	return -1;
-}
-void re_setRuleChar(regex instance, char c) {
-	instance->rule = char_to_reptition_rule(c);
+	return R_CHAR;
 }
 regex re_create_f_str(char* regexp) {
 	if (regexp == NULL) 			//if we are given an empty string
 		return NULL; 			//return nothing
+
 	regex first_node = NULL;	 	//pointer to the first node (also returned at the end)
 	regex last_node = NULL; 		//point to the last node made.
 	regex parent_node = NULL; 		//pointer to the parent_node.
@@ -312,155 +315,64 @@ regex re_create_f_str(char* regexp) {
 	bool in_parent = false; 		//is the character string still inside the parentheses?
 	bool last_backslash = false; 		//isntead of using a regexp[a] == '\' && regexp[a+1] == symbol... we just set a flag. probably inefficient
 //iterate over all the passed characters
-	const bool print_info = false;
 	//we could handle this without a for loop, a while loop(or do-while) that increments the *regexp will work just as well
 	for (a = 0; regexp[a] != '\0'; a++) {
-		//print information
-		if (print_info) {
-			printf("-------------------------------\n");
-			if (parent_node)
-				{printf("PARENT:\t"); re_print(parent_node); printf("\n"); }
-			if (last_node)
-				{printf("LAST:\t"); re_print(last_node); printf("\n"); }
-			printf("EXPR:\t[%s]-\n", regexp+a);
-		}
 		rule = R_CHAR;
 		literal = regexp[a];
-//if the current regex char, modifies the LAST node.
 //RULE APPLICATION
-		if (!in_parent && parent_node) { 	//meaning we found a ')' last iteration,
-			if (print_info)
-				printf(">ready to apply rule to parent\n");
-			//STAR
-			if (regexp[a] == '*') {
-				re_setRule(parent_node, R_STAR);
+		//done before rule application
+		if (!last_backslash) {
+			if (regexp[a] == '\\') {
+				last_backslash = true;
 				continue;
 			}
-			//PLUS
-			else if (regexp[a] == '+') {
-				re_setRule(parent_node, R_PLUS);
+			else if (regexp[a] == ')') {
+				in_parent = false;
+				last_node = parent_node; //if the next character is a repetition symbol, it will apply to the parent!
 				continue;
 			}
-			//OPTIONAL
-			else if (regexp[a] == '?') {
-				re_setRule(parent_node, R_OPT);
+			else if (!in_parent && regexp[a] == '(') {
+				in_parent = true;
+			}
+			//because we are not dealing with a literal, apply the rule to the last node.
+			if (re_char_to_reptition_rule(last_node, regexp[a]))
 				continue;
-			}
-			
-		}
-		else if (!last_backslash) {
-			if (print_info)
-				printf(">read to apply rule to LAST\n");
-			//STAR
-			if (regexp[a] == '*') {
-				re_setRule(last_node, R_STAR);
-				continue;
-			}
-			//PLUS
-			else if (regexp[a] == '+') {
-				re_setRule(last_node, R_PLUS);
-				continue;
-			}
-			//OPTIONAL
-			else if (regexp[a] == '?') {
-				re_setRule(last_node, R_OPT);
-				continue;
-			}
-			//R_DIGIT
-			else if (regexp[a] == '#') {
-				rule = R_DIGIT;
-				//we do not continue here, because is a SUBSTITUTION rule.
-				//Thus, it doesn't modify 'last_node'; but, is added
-				//as a REGEX itself.
-				//(similar to how the parent is always the '(' charater)
-			}
-			else if (regexp[a] == '&') {
-				rule = R_ALPHA;
-				//see comment in the previous if-statement for why we
-				//do not call continue
-			}
-			else if (regexp[a] == '.') {
-				rule = R_ALPHANUMERIC;
-			}
+			else rule = char_to_substitution_rule(regexp[a]);
 
 		}
-		if (last_backslash) last_backslash = false;
-		else if (regexp[a] == '\\') {
-			last_backslash = true;
-			continue;
-		}
-		if (print_info)
-			printf(">NO RULES APPLIED\n");
-//else if BRACE,
-		//if we aren't in a parent & find the opening
-		//set parent to true & continue
-		if (!in_parent && regexp[a] == '(') {
-			if (print_info)
-				printf(">in_parent = TRUE\n");
-			in_parent = true;
-		}
-		else if (in_parent && regexp[a] == ')') {
-			if (print_info)
-				printf(">in_parent = FALSE\n");
-			in_parent = false;
-			continue; //skip to the next entry so we can link the children to the new
+		else {
+			last_backslash = false;
 		}
 //create character regex
 		regex tmp_re = re_create(rule,literal);
-		if(print_info) {
-			printf(">SPAWNED: "); re_print(tmp_re); printf("\n");
-		}
-//if FIRST, set the first node
+//linking the nodes
 		if (!first_node) {
-			if(print_info) {
-				printf(">A:!first_node");
-				if (in_parent && !parent_node) {
-					printf(" && in_parent && !parent_node: set parent & first & last\n");
-				}
-				else
-					printf(": set first & last\n");
-			}
 			first_node = tmp_re;
 			last_node = tmp_re;
-			if (in_parent && !parent_node){
+			if (in_parent && !parent_node)
 				parent_node = tmp_re;
-			}
 			continue;
 		}
-//if in_parent, but an orphan. set parent
-		if (in_parent && !parent_node) {
-			if (print_info)
-				printf(">B:in_parent && !parent_node: set parent\n");
-			parent_node = tmp_re;
-			re_setNext(last_node, parent_node);
-		}
-//if in_parent, add new regex to parent
-		else if (in_parent && parent_node) {
-			if(print_info) {
-				printf(">C:in_parent && parent_node: add child\n");
+		if (in_parent) {
+			if (parent_node)
+				re_addChild(parent_node, tmp_re);
+			else {
+				parent_node = tmp_re;
+				re_setNext(last_node, parent_node);
 			}
-			re_addChild(parent_node, tmp_re);
 		}
-//if !in_parent, with parent_node set. Link the children to the new-node
-		else if (!in_parent && parent_node) {
-			if (print_info)
-				printf(">D:!in_parent && parent_node: link children\n");
-			for (int b = 0; b < re_getChildren(parent_node); b++) {
-				re_setNext(re_getChild(parent_node, b), tmp_re);
+		else {
+			if (parent_node) {
+				for (int b = 0; b < re_getChildren(parent_node); b++) {
+					re_setNext(re_getChild(parent_node, b), tmp_re);
+				}
+				re_setNext(parent_node, tmp_re);
+				parent_node = NULL;
 			}
-			re_setNext(parent_node, tmp_re);
-			parent_node = NULL;
-		}
-//else, add new regex to last->next.
-		else { 
-			if(print_info)
-				printf(">E: linking last_node to new node\n");
-			re_setNext(last_node, tmp_re);
+			else 
+				re_setNext(last_node, tmp_re);
 		}
 		last_node = tmp_re;
-/* Consider labelling the parent-node with a special rule or flag to indicate that its contents are ignored?
- * */
-		//when in_parent is ended on previous iteration. thus leaving the kids as NULL if the stream ends
 	}
 	return first_node;
 }
