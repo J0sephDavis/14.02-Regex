@@ -38,16 +38,16 @@ char* rules_names[] = {
 /** 	      prototypes 	        **/
 regex re_create(int, int);
 void re_destroy(regex);   
-int re_gRule(regex instance);
+int re_getRule(regex instance);
 void re_setRule(regex, int);
-int re_gLiteral(regex);
+int re_getLiteral(regex);
 regex re_getNext(regex);
 void re_setNext(regex, regex);
 int re_getChildren(regex);
 void re_addChild(regex, regex);
 regex re_getChild(regex, int);
 void re_print(regex);
-//
+//creates a regex object with specified rule & literal
 regex re_create(int _rule, int _literal) {
 	regex instance = calloc(1, sizeof(struct regex_t));
 	instance->rule = _rule;
@@ -56,28 +56,36 @@ regex re_create(int _rule, int _literal) {
 	instance->c_count = 0;
 	return instance;
 }
+//destroys the SPECIFIED node, not its children or related nodes
 void re_destroy(regex instance) {
 	//printf("FREE:"); re_print(instance); printf("\n");
 	free(instance);
 }
-int re_gRule(regex instance) {
+//returns the rule of the node
+int re_getRule(regex instance) {
 	return instance->rule;
 }
+//sets the rule of the node
 void re_setRule(regex instance, int _rule) {
 	instance->rule = _rule;
 }
-int re_gLiteral(regex instance) {
+//gets the literal of the node
+int re_getLiteral(regex instance) {
 	return instance->literal;
 }
+//returns the next node from the node
 regex re_getNext(regex instance) {
 	return instance->next;
 }
+//sets the next node of the current node
 void re_setNext(regex instance, regex next_instance) {
 	instance->next = next_instance;
 }
+//returns the COUNT of a node's children
 int re_getChildren(regex instance) {
 	return instance->c_count;
 }
+//adds a child to a node
 void re_addChild(regex instance, regex child) {
 	if (!instance->children) { 		//if there are no children, allocate
 		instance->children = calloc(1, sizeof(struct regex_t**));
@@ -87,6 +95,7 @@ void re_addChild(regex instance, regex child) {
 	}
 	instance->children[instance->c_count++] = child;
 }
+//returns a child of a node, given by index
 regex re_getChild(regex instance, int index) {
 	if (index > re_getChildren(instance) || index < 0) {
 		return NULL;
@@ -94,6 +103,7 @@ regex re_getChild(regex instance, int index) {
 	else
 		return instance->children[index];
 }
+//prints the nodes information
 void re_print(regex instance) {
 	if (instance)
 		printf("[Rule: %s | Literal: %c | Next? : %s | Children: %d]",
@@ -101,6 +111,115 @@ void re_print(regex instance) {
 				(instance->next) ? "Yes" : "No",
 				re_getChildren(instance));
 	else printf("[-]");
+}
+/*** 				regex compilation 				    ***/
+/* The following code is for compiling the    *//** 	      prototypes 	        **/
+/*regex from an input string into the linked  */bool re_char_to_reptition_rule(regex, char);
+/*regex nodes.                                */int char_to_substitution_rule(char);
+/*                                            */regex re_create_f_str(char*);
+//if the character is a repetition rule, the RE's rule will be changed. otherwise it is not touched & false is returned
+bool re_char_to_reptition_rule(regex instance, char c) {
+	switch(c) {
+		case('*'):
+			re_setRule(instance,R_STAR);
+			return true;
+		case('?'):
+			re_setRule(instance,R_OPT);
+			return true;
+		case('+'):
+			re_setRule(instance,R_PLUS);
+			return true;
+		default:
+			return false;
+	}
+}
+//return either the matching substitution rule or R_CHAR
+int char_to_substitution_rule(char c) {
+	switch(c) {
+		case('.'):
+			return R_ALPHANUMERIC;
+		case('#'):
+			return R_DIGIT;
+		case('&'):
+			return R_ALPHA;
+	}
+	return R_CHAR;
+}
+//create a node-tree of REs from an input string
+regex re_create_f_str(char* regexp) {
+	if (regexp == NULL) 			//if we are given an empty string
+		return NULL; 			//return nothing
+	//
+	regex first_node = NULL;	 	//pointer to the first node (also returned at the end)
+	regex last_node = NULL; 		//point to the last node made.
+	regex parent_node = NULL; 		//pointer to the parent_node.
+	//
+	int literal; 				//stores the current character in the regexp
+	int rule; 				//stores the current rule
+	//
+	bool in_parent = false; 		//is the character string still inside the parentheses?
+	bool last_backslash = false; 		//isntead of using a regexp[a] == '\' && regexp[a+1] == symbol... we just set a flag. probably inefficient
+	//
+	int a; 					//iterator
+//iterate over all the passed characters
+	for (a = 0; regexp[a] != '\0'; a++) {
+		rule = R_CHAR;
+		literal = regexp[a];
+//RULE APPLICATION
+		if (!last_backslash) {
+			if (regexp[a] == '\\') {
+				last_backslash = true;
+				continue;
+			}
+			else if (regexp[a] == ')') {
+				in_parent = false;
+				last_node = parent_node; //if the next character is a repetition symbol, it will apply to the parent!
+				continue;
+			}
+			else if (!in_parent && regexp[a] == '(') {
+				in_parent = true;
+			}
+			//because we are not dealing with a literal, apply the rule to the last node.
+			if (re_char_to_reptition_rule(last_node, regexp[a]))
+				continue;
+			else rule = char_to_substitution_rule(regexp[a]);
+
+		}
+		else { 
+			last_backslash = false;
+		}
+//CREATE NODE
+		regex tmp_re = re_create(rule,literal);
+//LINK NODE(S)
+		if (!first_node) {
+			first_node = tmp_re;
+			last_node = tmp_re;
+			if (in_parent && !parent_node)
+				parent_node = tmp_re;
+			continue;
+		}
+		if (in_parent) {
+			if (parent_node)
+				re_addChild(parent_node, tmp_re);
+			else {
+				parent_node = tmp_re;
+				re_setNext(last_node, parent_node);
+			}
+		}
+		else {
+			if (parent_node) {
+				for (int b = 0; b < re_getChildren(parent_node); b++) {
+					re_setNext(re_getChild(parent_node, b), tmp_re);
+				}
+				re_setNext(parent_node, tmp_re);
+				parent_node = NULL;
+			}
+			else 
+				re_setNext(last_node, tmp_re);
+		}
+		last_node = tmp_re;
+	}
+	return first_node;
 }
 /*** 					matching 				    ***/
 /* match is called from the root node & text. *//** 	      prototypes 	        **/
@@ -135,7 +254,7 @@ bool m_here(regex instance, char* text) {
 		return true; 		//were passed correctly
 	//process rules
 	int children = re_getChildren(instance);
-	switch(re_gRule(instance)) {
+	switch(re_getRule(instance)) {
 		case (R_CHAR):
 			if (children == 0)
 				return m_char(instance,text);
@@ -143,8 +262,9 @@ bool m_here(regex instance, char* text) {
 				return m_parent_char(instance,text);
 		case (R_STAR):
 			if (children == 0)
-			return m_star(instance, text);
-			else return m_parent_star(instance,text);
+				return m_star(instance, text);
+			else
+				return m_parent_star(instance,text);
 		case (R_PLUS):
 			if (children == 0)
 				return m_plus(instance,text);
@@ -162,7 +282,7 @@ bool m_here(regex instance, char* text) {
 		default:
 			break;
 	}
-
+	//
 	if (*text == '\0') 			//rules left, but no text left. FAIL
 		return false;
 	return false;
@@ -170,7 +290,7 @@ bool m_here(regex instance, char* text) {
 //match a single literal
 bool m_char(regex instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_char: "); re_print(instance); printf("%s\n", text);}
-	if(re_gLiteral(instance) == *text)
+	if(re_getLiteral(instance) == *text)
 		return m_here(re_getNext(instance), text+1);
 	else return false;
 }
@@ -180,13 +300,13 @@ bool m_star(regex instance, char* text) {
 	do {
 		if (m_here(re_getNext(instance), text))
 			return true;
-	} while (*text != '\0' && re_gLiteral(instance) == *text++);
+	} while (*text != '\0' && re_getLiteral(instance) == *text++);
 	return false;
 }
 //match one or more times
 bool m_plus(regex instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_plus: "); re_print(instance); printf("%s\n", text);}
-	while (*text != '\0' && re_gLiteral(instance) == *text++) {
+	while (*text != '\0' && re_getLiteral(instance) == *text++) {
 		if (m_here(re_getNext(instance), text+1))
 			return 1;
 	}
@@ -269,114 +389,9 @@ bool m_parent_optional(regex parent, char* text) {
 	}
 	return m_here(re_getNext(parent), text);
 }
-/*** 				regex compilation 				    ***/
-//re_create_f_str:
-// 	processRule()
-// 	or
-// 	addNode()
-// 	or
-// 	addChildNode()
-//if the character is a repetition rule, the RE's rule will be changed. otherwise it is not touched & false is returned
-bool re_char_to_reptition_rule(regex instance, char c) {
-	switch(c) {
-		case('*'):
-			re_setRule(instance,R_STAR);
-			return true;
-		case('?'):
-			re_setRule(instance,R_OPT);
-			return true;
-		case('+'):
-			re_setRule(instance,R_PLUS);
-			return true;
-		default:
-			return false;
-	}
-}
-int char_to_substitution_rule(char c) {
-	switch(c) {
-		case('.'):
-			return R_ALPHANUMERIC;
-		case('#'):
-			return R_DIGIT;
-		case('&'):
-			return R_ALPHA;
-	}
-	return R_CHAR;
-}
-regex re_create_f_str(char* regexp) {
-	if (regexp == NULL) 			//if we are given an empty string
-		return NULL; 			//return nothing
-
-	regex first_node = NULL;	 	//pointer to the first node (also returned at the end)
-	regex last_node = NULL; 		//point to the last node made.
-	regex parent_node = NULL; 		//pointer to the parent_node.
-	int literal; 				//stores the current character in the regexp
-	int rule; 				//stores the current rule
-	int a; 					//iterator
-	bool in_parent = false; 		//is the character string still inside the parentheses?
-	bool last_backslash = false; 		//isntead of using a regexp[a] == '\' && regexp[a+1] == symbol... we just set a flag. probably inefficient
-//iterate over all the passed characters
-	//we could handle this without a for loop, a while loop(or do-while) that increments the *regexp will work just as well
-	for (a = 0; regexp[a] != '\0'; a++) {
-		rule = R_CHAR;
-		literal = regexp[a];
-//RULE APPLICATION
-		//done before rule application
-		if (!last_backslash) {
-			if (regexp[a] == '\\') {
-				last_backslash = true;
-				continue;
-			}
-			else if (regexp[a] == ')') {
-				in_parent = false;
-				last_node = parent_node; //if the next character is a repetition symbol, it will apply to the parent!
-				continue;
-			}
-			else if (!in_parent && regexp[a] == '(') {
-				in_parent = true;
-			}
-			//because we are not dealing with a literal, apply the rule to the last node.
-			if (re_char_to_reptition_rule(last_node, regexp[a]))
-				continue;
-			else rule = char_to_substitution_rule(regexp[a]);
-
-		}
-		else {
-			last_backslash = false;
-		}
-//create character regex
-		regex tmp_re = re_create(rule,literal);
-//linking the nodes
-		if (!first_node) {
-			first_node = tmp_re;
-			last_node = tmp_re;
-			if (in_parent && !parent_node)
-				parent_node = tmp_re;
-			continue;
-		}
-		if (in_parent) {
-			if (parent_node)
-				re_addChild(parent_node, tmp_re);
-			else {
-				parent_node = tmp_re;
-				re_setNext(last_node, parent_node);
-			}
-		}
-		else {
-			if (parent_node) {
-				for (int b = 0; b < re_getChildren(parent_node); b++) {
-					re_setNext(re_getChild(parent_node, b), tmp_re);
-				}
-				re_setNext(parent_node, tmp_re);
-				parent_node = NULL;
-			}
-			else 
-				re_setNext(last_node, tmp_re);
-		}
-		last_node = tmp_re;
-	}
-	return first_node;
-}
+//
+//
+//
 /*** 				    main 					    ***/
 int main(int argc, char** argv) {
 	int a; 				//iterator
