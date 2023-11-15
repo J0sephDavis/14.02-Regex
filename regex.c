@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+#define PRINT_MESSAGES 1
 /***                           	  the regex class                                   ***/
 struct regex_t {
 	int rule;
@@ -123,7 +124,7 @@ void re_print(regex instance) {
 //returns true if the expression found a match in the text, otherwise it returns false.
 bool match(regex expression, char* text) {
 	do {
-		printf("<-match-loop->\n");
+		if(PRINT_MESSAGES)printf("<-match-loop->\n");
 		if (m_here(expression, text))
 			return true;
 	} while(*text++ != '\0');
@@ -168,14 +169,14 @@ bool m_here(regex instance, char* text) {
 }
 //match a single literal
 bool m_char(regex instance, char* text) {
-	printf("m_char: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_char: "); re_print(instance); printf("%s\n", text);}
 	if(re_gLiteral(instance) == *text)
 		return m_here(re_getNext(instance), text+1);
 	else return false;
 }
 //match the instance 0 or more times
 bool m_star(regex instance, char* text) {
-	printf("m_star: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_star: "); re_print(instance); printf("%s\n", text);}
 	do {
 		if (m_here(re_getNext(instance), text))
 			return true;
@@ -184,7 +185,7 @@ bool m_star(regex instance, char* text) {
 }
 //match one or more times
 bool m_plus(regex instance, char* text) {
-	printf("m_plus: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_plus: "); re_print(instance); printf("%s\n", text);}
 	while (*text != '\0' && re_gLiteral(instance) == *text++) {
 		if (m_here(re_getNext(instance), text+1))
 			return 1;
@@ -193,7 +194,7 @@ bool m_plus(regex instance, char* text) {
 }
 //match ZERO or ONE times
 bool m_optional(regex instance, char* text) {
-	printf("m_opt: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_opt: "); re_print(instance); printf("%s\n", text);}
 	if (m_char(instance, text)) 		//if we find the character
 		return m_here(re_getNext(instance), text+1);
 	else 	//if we did not find the literal. Don't move text, but bring the regex forward
@@ -201,26 +202,26 @@ bool m_optional(regex instance, char* text) {
 }
 //mathes an alphabetical character
 bool m_alpha(regex instance, char* text) {
-	printf("m_alpha: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_alpha: "); re_print(instance); printf("%s\n", text);}
 	if (isalpha(*text))
 		return m_here(re_getNext(instance), text+1);
 	return false;
 }
 bool m_digit(regex instance, char* text) {
-	printf("m_digit: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_digit: "); re_print(instance); printf("%s\n", text);}
 	if (isdigit(*text))
 		return m_here(re_getNext(instance), text+1);
 	return false;
 }
 bool m_alphanum(regex instance, char* text) {
-	printf("m_alphanum: "); re_print(instance); printf("%s\n", text);
+	if(PRINT_MESSAGES){printf("m_alphanum: "); re_print(instance); printf("%s\n", text);}
 	if (isalnum(*text))
 		return m_here(re_getNext(instance), text+1);
 	return false;
 }
 //match a children zero or many times
 bool m_parent_star(regex parent, char* text) {
-	printf("mp_star\n");
+	if(PRINT_MESSAGES){printf("mp_star\n");}
 	int child_index = 0;
 	int total_children = re_getChildren(parent);
 	for (child_index = 0; child_index < total_children; child_index++) {
@@ -235,7 +236,7 @@ bool m_parent_star(regex parent, char* text) {
 }
 //returns true if the match for each 
 bool m_parent_char(regex parent, char* text) {
-	printf("mp_char\n");
+	if(PRINT_MESSAGES){printf("mp_char\n");}
 	int total_children = re_getChildren(parent);
 	for (int child_index = 0; child_index < total_children; child_index++){
 		regex child = re_getChild(parent, child_index);
@@ -246,7 +247,7 @@ bool m_parent_char(regex parent, char* text) {
 }
 //match a child one or more times. if none of the children match once or more, return false
 bool m_parent_plus(regex parent, char* text) {
-	printf("mp_plus\n");
+	if(PRINT_MESSAGES)printf("mp_plus\n");
 	int total_children = re_getChildren(parent);
 	for (int child_index = 0; child_index < total_children; child_index++) {
 		char* tmp_text = text;
@@ -260,7 +261,7 @@ bool m_parent_plus(regex parent, char* text) {
 }
 //returns true if the match at the next element is valid or if any of the children are valid
 bool m_parent_optional(regex parent, char* text) {
-	printf("mp_opt\n");
+	if(PRINT_MESSAGES)printf("mp_opt\n");
 	int total_children = re_getChildren(parent);
 	for (int a = 0; a < total_children; a++ ) {
 		if (m_here(re_getChild(parent, a),text))
@@ -404,14 +405,17 @@ int main(int argc, char** argv) {
 			*input_anchor++ = ' '; //add a space BETWIXT words
 	}
 //output
-	printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
+	if (PRINT_MESSAGES)
+		printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
 	regex regexpr = re_create_f_str(regex_expression);
 	regex instance = regexpr;
 	while(instance) {
-		re_print(instance);
-		printf("\n");
+		if(PRINT_MESSAGES) {
+			re_print(instance);
+			printf("\n");
+		}
 		if (re_getChildren(instance) != 0) {
-			for (int b = 0; b < re_getChildren(instance); b++) {
+			if(PRINT_MESSAGES)for (int b = 0; b < re_getChildren(instance); b++) {
 				printf("*\t");
 				re_print(re_getChild(instance, b));
 				printf("\n");
