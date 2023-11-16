@@ -264,6 +264,7 @@ bool match(regex expression, char* text) {
 	return false; 
 }
 bool m_parent(regex instance, char* text) {
+	instance = re_getChild(instance);
 	switch(re_getRule(instance)) {
 		default:
 		case (R_CHAR):
@@ -276,27 +277,33 @@ bool m_parent(regex instance, char* text) {
 			return m_parent_optional(instance, text);
 	}
 }
+bool m_parent_char(regex instance, char* text) {
+	while(instance) {
+		if (m_here(instance, text))
+			return true;
+		instance = re_getAlternate(instance);
+	}
+	return false;
+}
 bool m_parent_star(regex instance, char* text) {	
-	regex alternate_child = NULL;
-	while (alternate_child) {
+	while (instance) {
 		char* tmp_text = text;
 		do {
-			if (m_here(alternate_child, text))
+			if (m_here(instance, text))
 				return true;
 		} while (*text != '\0' && re_getLiteral(instance) == *tmp_text++);
-		alternate_child = re_getAlternate(instance);	
+		instance = re_getAlternate(instance);	
 	}
 	return true;
 }
 bool m_parent_plus(regex instance, char* text) {
-	regex alternate_child = NULL;
-	while(alternate_child) {
+	while(instance) {
 		char* tmp_text = text;
-		while (*text != '\0' && re_getLiteral(alternate_child) == *tmp_text++) {
-			if (m_here(alternate_child,text))
+		while (*text != '\0' && re_getLiteral(instance) == *tmp_text++) {
+			if (m_here(instance,text))
 				return true;
 		};
-		alternate_child = re_getAlternate(instance);
+		instance = re_getAlternate(instance);
 	}
 	return false;
 }
