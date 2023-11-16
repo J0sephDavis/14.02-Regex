@@ -175,49 +175,69 @@ regex re_create_f_str(char* regexp) {
 	for (a = 0; regexp[a] != '\0'; a++) {
 		rule = R_CHAR;
 		literal = regexp[a];
+		if (PRINT_MESSAGES) printf("-PROCESSING:%c\n", literal);
 //RULE APPLICATION
 		if (!last_backslash) {
+			if (PRINT_MESSAGES) printf("I:!backslash\n");
 			if (regexp[a] == '\\') {
+				if (PRINT_MESSAGES) printf("\ta:\\-skip\n");
 				last_backslash = true;
 				continue;
 			}
 			else if (regexp[a] == ')') {
+				if (PRINT_MESSAGES) printf("\tb:')'-skip\n");
 				in_parent = false;
 				last_node = parent_node; //if the next character is a repetition symbol, it will apply to the parent!
 				continue;
 			}
 			else if (!in_parent && regexp[a] == '(') {
+				if (PRINT_MESSAGES) printf("\tc:'('\n");
 				in_parent = true;
 			}
 			//because we are not dealing with a literal, apply the rule to the last node.
-			if (re_char_to_reptition_rule(last_node, regexp[a]))
+			else if (re_char_to_reptition_rule(last_node, regexp[a])) {
+				if (PRINT_MESSAGES) printf("\td:rep apply-skip\n");
 				continue;
-			else rule = char_to_substitution_rule(regexp[a]);
+			}
+			else {
+				if (PRINT_MESSAGES) printf("\te:sub rule\n");
+				rule = char_to_substitution_rule(regexp[a]);
+			}
 
 		}
 		else { 
+			if (PRINT_MESSAGES) printf("II:backslash\n");
 			last_backslash = false;
 		}
 //CREATE NODE
 		regex tmp_re = re_create(rule,literal);
 //LINK NODE(S)
 		if (!first_node) {
+			if (PRINT_MESSAGES) printf("III:!first_node - skip\n");
 			first_node = tmp_re;
 			last_node = tmp_re;
-			if (in_parent && !parent_node)
+			if (in_parent && !parent_node){
+				if (PRINT_MESSAGES) printf("\ta:in_parent && !parent_node: parent = new\n");
 				parent_node = tmp_re;
+			}
 			continue;
 		}
 		if (in_parent) {
-			if (parent_node)
-				re_addChild(parent_node, tmp_re);
+			if (PRINT_MESSAGES) printf("IV:in_parent\n");
+			if (parent_node) {
+					if (PRINT_MESSAGES) printf("\ta:parent_node: ADD CHILD(parent, new)\n");
+					re_addChild(parent_node, tmp_re);
+			}
 			else {
+				if (PRINT_MESSAGES) printf("\tb:!parent_node: SET NEXT & parent = new. last.next=parent\n");
 				parent_node = tmp_re;
 				re_setNext(last_node, parent_node);
 			}
 		}
 		else {
+			if (PRINT_MESSAGES) printf("V:!in_parent\n");
 			if (parent_node) {
+				if (PRINT_MESSAGES) printf("\ta:parent_node: EACH:parent.child.alternate.next = new\n");
 				regex tmp_child = re_getChild(parent_node);
 				while (tmp_child != NULL) {
 					re_setNext(tmp_child, tmp_re);
@@ -226,9 +246,12 @@ regex re_create_f_str(char* regexp) {
 				re_setNext(parent_node, tmp_re);
 				parent_node = NULL;
 			}
-			else 
+			else {
+				if (PRINT_MESSAGES) printf("\tb:!parent_node: set next(last->new)\n");
 				re_setNext(last_node, tmp_re);
+			}
 		}
+		if (PRINT_MESSAGES) printf("VII:last->new\n");
 		last_node = tmp_re;
 	}
 	return first_node;
@@ -264,21 +287,22 @@ bool match(regex expression, char* text) {
 	return false; 
 }
 bool m_parent(regex instance, char* text) {
-	instance = re_getChild(instance);
+	if(PRINT_MESSAGES){printf("M_PARENT:%s: ", rules_names[instance->rule]); re_print(instance); printf("%s\n", text);}
 	switch(re_getRule(instance)) {
 		default:
 		case (R_CHAR):
-			return m_parent_char(instance,text);
+			return m_parent_char(re_getChild(instance),text);
 		case (R_STAR):
-			return m_parent_star(instance, text);
+			return m_parent_star(re_getChild(instance), text);
 		case (R_PLUS):
-			return m_parent_plus(instance,text);
+			return m_parent_plus(re_getChild(instance),text);
 		case (R_OPT):
-			return m_parent_optional(instance, text);
+			return m_parent_optional(re_getChild(instance), text);
 	}
 }
 bool m_parent_char(regex instance, char* text) {
 	while(instance) {
+		if (PRINT_MESSAGES) printf("<mp_char loop>\n");
 		if (m_here(instance, text))
 			return true;
 		instance = re_getAlternate(instance);
@@ -289,17 +313,19 @@ bool m_parent_star(regex instance, char* text) {
 	while (instance) {
 		char* tmp_text = text;
 		do {
+			if (PRINT_MESSAGES) printf("<mp_star loop>\n");
 			if (m_here(instance, text))
 				return true;
-		} while (*text != '\0' && re_getLiteral(instance) == *tmp_text++);
+		} while (*text != '\0' && re_getLiteral(instance) == *tmp_text++); //I have a feeling this logic will bite me one day
 		instance = re_getAlternate(instance);	
 	}
 	return true;
 }
 bool m_parent_plus(regex instance, char* text) {
 	while(instance) {
+		if (PRINT_MESSAGES) printf("<mp_plus loop>\n");
 		char* tmp_text = text;
-		while (*text != '\0' && re_getLiteral(instance) == *tmp_text++) {
+		while (*text != '\0' && re_getLiteral(instance) == *++tmp_text) {
 			if (m_here(instance,text))
 				return true;
 		};
@@ -308,6 +334,8 @@ bool m_parent_plus(regex instance, char* text) {
 	return false;
 }
 bool m_parent_optional(regex instance, char* text) {
+	if (PRINT_MESSAGES) printf("<mp_plus loop>\n");
+
 	if (instance != NULL && text != NULL)
 		return false;
 	else return false;
@@ -331,18 +359,15 @@ bool m_rule(regex instance, char* text) {
 	}
 }
 bool m_here(regex instance, char* text) {
+//	if(PRINT_MESSAGES){printf("m_HERE: "); re_print(instance); printf("\n");}
 	//if the instance is empty, we are out of rules!
 	if (!instance)
 		return true;
 	//process rules
-//	regex alternate = re_getAlternate(instance);
 	regex child = re_getChild(instance);
 	//attempt to match from the children,
-	//child&&alternate vs child && !alternate
 	if (!child && m_rule(instance,text))
 		return true;
-//	else if (alternate && m_here(alternate,text)) //hanlded in the m_parent functions
-//		return true;
 	else if (child && m_parent(instance, text))
 		return true;
 	//if there was no match before, try the alternative branch
@@ -352,8 +377,9 @@ bool m_here(regex instance, char* text) {
 //match a single literal
 bool m_char(regex instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_char: "); re_print(instance); printf("%s\n", text);}
-	if(re_getLiteral(instance) == *text)
+	if(re_getLiteral(instance) == *text){
 		return m_here(re_getNext(instance), text+1);
+	}
 	else return false;
 }
 //match the instance 0 or more times
@@ -368,9 +394,10 @@ bool m_star(regex instance, char* text) {
 //match one or more times
 bool m_plus(regex instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_plus: "); re_print(instance); printf("%s\n", text);}
-	while (*text != '\0' && re_getLiteral(instance) == *text++) {
-		if (m_here(re_getNext(instance), text+1))
-			return 1;
+	while (*text != '\0' && re_getLiteral(instance) == *++text) {
+		if (m_here(re_getNext(instance), text+1)) {
+			return true;
+		}
 	}
 	return 0;
 }
@@ -437,28 +464,28 @@ int main(int argc, char** argv) {
 	regex regexpr = re_create_f_str(regex_expression);
 	regex instance = regexpr;
 	while(instance && PRINT_MESSAGES) {
-		bool alt_found = re_getAlternate(instance) != NULL;
-		//alternates found
-		if (alt_found) {
+		re_print(instance);
+		printf("\n");
+		if (re_getChild(instance)) {
+			instance = re_getChild(instance);
+			printf("*\t");
+		}
+		else if (re_getAlternate(instance)) {
 			instance = re_getAlternate(instance);
 			printf("*\t");
-			re_print(instance);
-			printf("\n");
-
 		}
-		//no alternates
+		//no kids or alternate
 		else {
-			re_print(instance);
-			printf("\n");
 			instance = re_getNext(instance);
 		}
 	}
 	printf("%s\n", (match(regexpr, input_text))? "match" : "no match");
 	instance = regexpr;
 	while(instance) {
-		bool alt_found = re_getAlternate(instance) != NULL;
 		regex next_inst;
-		if (alt_found)
+		if (re_getChild(instance))
+			next_inst = re_getChild(instance);
+		else if (re_getAlternate(instance))
 			next_inst = re_getAlternate(instance);
 		else
 			next_inst = re_getNext(instance);
