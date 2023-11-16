@@ -169,6 +169,7 @@ regex re_create_f_str(char* regexp) {
 	//
 	bool in_parent = false; 		//is the character string still inside the parentheses?
 	bool last_backslash = false; 		//isntead of using a regexp[a] == '\' && regexp[a+1] == symbol... we just set a flag. probably inefficient
+	bool child_next = true; 		//if the node should be the NEXT (true) pointer for a child, or if it should be an alternate (FALSE)
 	//
 	int a; 					//iterator
 //iterate over all the passed characters
@@ -199,6 +200,11 @@ regex re_create_f_str(char* regexp) {
 				if (PRINT_MESSAGES) printf("\td:rep apply-skip\n");
 				continue;
 			}
+			else if (in_parent && regexp[a] == '|') {
+				if (PRINT_MESSAGES) printf("\te:'|': child-next->false-skip\n");
+				child_next = false;
+				continue;
+			}
 			else {
 				if (PRINT_MESSAGES) printf("\te:sub rule\n");
 				rule = char_to_substitution_rule(regexp[a]);
@@ -226,7 +232,16 @@ regex re_create_f_str(char* regexp) {
 			if (PRINT_MESSAGES) printf("IV:in_parent\n");
 			if (parent_node) {
 					if (PRINT_MESSAGES) printf("\ta:parent_node: ADD CHILD(parent, new)\n");
-					re_addChild(parent_node, tmp_re);
+					//if there is a child & we want to append a child to the last
+					if (re_getChild(parent_node) && child_next) {
+						if (PRINT_MESSAGES) printf("\t\ti:already has a child && child_next, append to child\n");
+						re_setNext(last_node, tmp_re);
+					}
+					//either no previous child, or we don't want to append a child to the last
+					else {
+						if (PRINT_MESSAGES) printf("\t\tii:add a child\n");
+						re_addChild(parent_node, tmp_re);
+					}
 			}
 			else {
 				if (PRINT_MESSAGES) printf("\tb:!parent_node: SET NEXT & parent = new. last.next=parent\n");
@@ -240,7 +255,17 @@ regex re_create_f_str(char* regexp) {
 				if (PRINT_MESSAGES) printf("\ta:parent_node: EACH:parent.child.alternate.next = new\n");
 				regex tmp_child = re_getChild(parent_node);
 				while (tmp_child != NULL) {
-					re_setNext(tmp_child, tmp_re);
+					if (re_getNext(tmp_child)) {
+						if (PRINT_MESSAGES) printf("\t\ti:child has next, find end & link\n");
+						regex tmp_subChild = re_getNext(tmp_child);
+						while (re_getNext(tmp_subChild))
+							tmp_subChild = re_getNext(tmp_subChild);
+						re_setNext(tmp_subChild, tmp_re);
+					}
+					else {
+						if (PRINT_MESSAGES) printf("\t\tii:child has no descendants,link to next\n");
+						re_setNext(tmp_child, tmp_re);
+					}
 					tmp_child = re_getAlternate(tmp_child);
 				}
 				re_setNext(parent_node, tmp_re);
@@ -252,6 +277,9 @@ regex re_create_f_str(char* regexp) {
 			}
 		}
 		if (PRINT_MESSAGES) printf("VII:last->new\n");
+		//reset the var
+		if (!child_next) child_next = true;
+		if (PRINT_MESSAGES&&!child_next) printf("VIII:child_next = true\n");
 		last_node = tmp_re;
 	}
 	return first_node;
