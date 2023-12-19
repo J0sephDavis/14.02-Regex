@@ -1,19 +1,17 @@
 #include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <ctype.h>
+#include <string>
 
 #define PRINT_MESSAGES 1
 /***                           	  the regex class                                   ***/
-struct regex_t {
+class regex {
+	public:
+		regex(int,int);
 	int rule;
 	int literal;
-	struct regex_t* next;
-	struct regex_t* alternate;
-	struct regex_t* child;
+	class regex* next;
+	class regex* alternate;
+	class regex* child;
 };
-typedef struct regex_t* regex;
 //the rules that change functionality
 //some rules such as using a "\" to indicate a symbol is literal,
 //are handled during compilation & thus don't need a named rule.
@@ -29,7 +27,7 @@ enum rules {
 	R_ALPHA, 	//ALPHA - letters a-zA-Z
 	R_ALPHANUMERIC, //ALPHANUMERIC - any letter or number
 };
-char* rules_names[] = {
+std::string rules_names[] = {
 	"char",
 	"star",
 	"plus",
@@ -39,84 +37,81 @@ char* rules_names[] = {
 	"alphanumeric"
 };
 /** 	      prototypes 	        **/
-regex re_create(int, int);
-void re_destroy(regex);   
-int re_getRule(regex instance);
-void re_setRule(regex, int);
-int re_getLiteral(regex);
-regex re_getNext(regex);
-void re_setNext(regex, regex);
-void re_setAlternate(regex, regex);
-regex re_getAlternate(regex);
-void re_addChild(regex, regex);
-regex re_getChild(regex);
-void re_print(regex);
+void re_destroy(regex*);   
+int re_getRule(regex* instance);
+void re_setRule(regex*, int);
+int re_getLiteral(regex*);
+regex* re_getNext(regex*);
+void re_setNext(regex*, regex*);
+void re_setAlternate(regex*, regex*);
+regex* re_getAlternate(regex*);
+void re_addChild(regex*, regex*);
+regex* re_getChild(regex*);
+void re_print(regex*);
 //creates a regex object with specified rule & literal
-regex re_create(int _rule, int _literal) {
-	regex instance = calloc(1, sizeof(struct regex_t));
-	instance->rule = _rule;
-	instance->literal = _literal;
-	instance->next = NULL;
-	instance->alternate = NULL; 	//should we only find these in a regex child? I think so, imagine the tree, it has to split only at child nodes.
+regex::regex(int _rule, int _literal) {
+	rule = _rule;
+	literal = _literal;
+	next = NULL;
+	alternate = NULL; 	//should we only find these in a regex child? I think so, imagine the tree, it has to split only at child nodes.
 //we can reduce our levels of recursion by reducing the regex objects we create
 //E.g., creating a char* containing a set of characters to match, but if we had a (ab)*
 //we would be in a situation where we have to memorize which character, a OR b, we are currently allowing to repeat.
 //because (ab)* is similar to (a*b*), but in the future we will make these an entry more similar to a*.next = b*
 //and b*.next is whatever the parent node's next is. Then, (a*b*) != (ab)*. (ab)* will become (a*|b*) or maybe (a|b)*
 //this will likely take some time to fully explore, but I ought to see how other regex systems handle all this
-	instance->child = NULL;
-	return instance;
+	child = NULL;
 }
 //destroys the SPECIFIED node, not its children or related nodes
-void re_destroy(regex instance) {
+void re_destroy(regex* instance) {
 	if(PRINT_MESSAGES)
 		{printf("FREE:"); re_print(instance); printf("\n");}
-	free(instance);
+	delete instance;
 }
 //returns the rule of the node
-int re_getRule(regex instance) {
+int re_getRule(regex* instance) {
 	return instance->rule;
 }
 //sets the rule of the node
-void re_setRule(regex instance, int _rule) {
+void re_setRule(regex* instance, int _rule) {
 	instance->rule = _rule;
 }
 //gets the literal of the node
-int re_getLiteral(regex instance) {
+int re_getLiteral(regex* instance) {
 	return instance->literal;
 }
 //returns the next node from the node
-regex re_getNext(regex instance) {
+regex* re_getNext(regex* instance) {
 	return instance->next;
 }
 //sets the next node of the current node
-void re_setNext(regex instance, regex next_instance) {
+void re_setNext(regex* instance, regex* next_instance) {
 	instance->next = next_instance;
 }
-regex re_getAlternate(regex instance) {
+regex* re_getAlternate(regex* instance) {
 	return instance->alternate;
 }
-void re_setAlternate(regex instance, regex alternate) {
+void re_setAlternate(regex* instance, regex* alternate) {
 	if (instance->alternate != NULL)
 		re_setAlternate(instance->alternate, alternate);
 	else
 		instance->alternate = alternate;
 }
-void re_addChild(regex instance, regex child) {
+void re_addChild(regex* instance, regex* child) {
 	if (instance->child) {
 		re_setAlternate(instance->child,child);
 	}
 	else
 		instance->child = child;
 }
-regex re_getChild(regex instance) {
+regex* re_getChild(regex* instance) {
 	return instance->child;
 }
 //prints the nodes information
-void re_print(regex instance) {
+void re_print(regex* instance) {
 	if (instance)
 		printf("[Rule: %s | Literal: %c | Next? : %s | Alt?: %s | Child?: %s]",
-				rules_names[instance->rule], instance->literal,
+				rules_names[instance->rule].c_str(), instance->literal,
 				(instance->next) ? "Yes" : "No",
 				(re_getAlternate(instance) ? "yes" : "no"),
 				(re_getChild(instance) ? "yes" : "no"));
@@ -124,11 +119,11 @@ void re_print(regex instance) {
 }
 /*** 				regex compilation 				    ***/
 /* The following code is for compiling the    *//** 	      prototypes 	        **/
-/*regex from an input string into the linked  */bool re_char_to_reptition_rule(regex, char);
+/*regex from an input string into the linked  */bool re_char_to_reptition_rule(regex*, char);
 /*regex nodes.                                */int char_to_substitution_rule(char);
-/*                                            */regex re_create_f_str(char*);
+/*                                            */regex* re_create_f_str(char*);
 //if the character is a repetition rule, the RE's rule will be changed. otherwise it is not touched & false is returned
-bool re_char_to_reptition_rule(regex instance, char c) {
+bool re_char_to_reptition_rule(regex* instance, char c) {
 	switch(c) {
 		case('*'):
 			re_setRule(instance,R_STAR);
@@ -156,13 +151,13 @@ int char_to_substitution_rule(char c) {
 	return R_CHAR;
 }
 //create a node-tree of REs from an input string
-regex re_create_f_str(char* regexp) {
+regex* re_create_f_str(char* regexp) {
 	if (regexp == NULL) 			//if we are given an empty string
 		return NULL; 			//return nothing
 	//
-	regex first_node = NULL;	 	//pointer to the first node (also returned at the end)
-	regex last_node = NULL; 		//point to the last node made.
-	regex parent_node = NULL; 		//pointer to the parent_node that needs alternates.
+	regex* first_node = NULL;	 	//pointer to the first node (also returned at the end)
+	regex* last_node = NULL; 		//point to the last node made.
+	regex* parent_node = NULL; 		//pointer to the parent_node that needs alternates.
 	//
 	int literal; 				//stores the current character in the regexp
 	int rule; 				//stores the current rule
@@ -216,7 +211,7 @@ regex re_create_f_str(char* regexp) {
 			last_backslash = false;
 		}
 //CREATE NODE
-		regex tmp_re = re_create(rule,literal);
+		regex* tmp_re = new regex(rule,literal);
 //LINK NODE(S)
 		if (!first_node) {
 			if (PRINT_MESSAGES) printf("III:!first_node - skip\n");
@@ -253,11 +248,11 @@ regex re_create_f_str(char* regexp) {
 			if (PRINT_MESSAGES) printf("V:!in_parent\n");
 			if (parent_node) {
 				if (PRINT_MESSAGES) printf("\ta:parent_node: EACH:parent.child.alternate.next = new\n");
-				regex tmp_child = re_getChild(parent_node);
+				regex* tmp_child = re_getChild(parent_node);
 				while (tmp_child != NULL) {
 					if (re_getNext(tmp_child)) {
 						if (PRINT_MESSAGES) printf("\t\ti:child has next, find end & link\n");
-						regex tmp_subChild = re_getNext(tmp_child);
+						regex* tmp_subChild = re_getNext(tmp_child);
 						while (re_getNext(tmp_subChild))
 							tmp_subChild = re_getNext(tmp_subChild);
 						re_setNext(tmp_subChild, tmp_re);
@@ -286,27 +281,27 @@ regex re_create_f_str(char* regexp) {
 }
 /*** 					matching 				    ***/
 /* match is called from the root node & text. *//** 	      prototypes 	        **/
-/* match-here is called when the text is to be*/bool match(regex instance, char* text);
-/* moved.                                     */bool m_here(regex instance, char* text);
+/* match-here is called when the text is to be*/bool match(regex* instance, char* text);
+/* moved.                                     */bool m_here(regex* instance, char* text);
 
-/* calls the proper rule for the instance     */bool m_rule(regex instance, char* text);
-/*                                            */bool m_char(regex instance, char* text);
-/*                                            */bool m_star(regex instance, char* text);
-/*                                            */bool m_plus(regex instance, char* text);
-/*                                            */bool m_optional(regex instance, char* text);
+/* calls the proper rule for the instance     */bool m_rule(regex* instance, char* text);
+/*                                            */bool m_char(regex* instance, char* text);
+/*                                            */bool m_star(regex* instance, char* text);
+/*                                            */bool m_plus(regex* instance, char* text);
+/*                                            */bool m_optional(regex* instance, char* text);
 
-/*                                            */bool m_alpha(regex instance, char* text);
-/*                                            */bool m_digit(regex instance, char* text);
-/*                                            */bool m_alphanum(regex instance, char* text);
+/*                                            */bool m_alpha(regex* instance, char* text);
+/*                                            */bool m_digit(regex* instance, char* text);
+/*                                            */bool m_alphanum(regex* instance, char* text);
 
-/* calls the proper parent function for the   */bool m_parent(regex instance, char* text);
-/*instance                                    */bool m_parent_char(regex instance, char* text);
-/*                                            */bool m_parent_star(regex instance, char* text);
-/*                                            */bool m_parent_plus(regex instance, char* text);
-/*                                            */bool m_parent_optional(regex instance, char* text);
+/* calls the proper parent function for the   */bool m_parent(regex* instance, char* text);
+/*instance                                    */bool m_parent_char(regex* instance, char* text);
+/*                                            */bool m_parent_star(regex* instance, char* text);
+/*                                            */bool m_parent_plus(regex* instance, char* text);
+/*                                            */bool m_parent_optional(regex* instance, char* text);
 /** 	      implementation         **/
 //returns true if the expression found a match in the text, otherwise it returns false.
-bool match(regex expression, char* text) {
+bool match(regex* expression, char* text) {
 	do {
 		if(PRINT_MESSAGES)printf("<-match-loop->\n");
 		if (m_here(expression, text))
@@ -314,8 +309,8 @@ bool match(regex expression, char* text) {
 	} while(*text++ != '\0');
 	return false; 
 }
-bool m_parent(regex instance, char* text) {
-	if(PRINT_MESSAGES){printf("M_PARENT:%s: ", rules_names[instance->rule]); re_print(instance); printf("%s\n", text);}
+bool m_parent(regex* instance, char* text) {
+	if(PRINT_MESSAGES){printf("M_PARENT:%s: ", rules_names[instance->rule].c_str()); re_print(instance); printf("%s\n", text);}
 	switch(re_getRule(instance)) {
 		default:
 		case (R_CHAR):
@@ -328,7 +323,7 @@ bool m_parent(regex instance, char* text) {
 			return m_parent_optional(re_getChild(instance), text);
 	}
 }
-bool m_parent_char(regex instance, char* text) {
+bool m_parent_char(regex* instance, char* text) {
 	while(instance) {
 		if (PRINT_MESSAGES) printf("<mp_char loop>\n");
 		if (m_here(instance, text))
@@ -337,7 +332,7 @@ bool m_parent_char(regex instance, char* text) {
 	}
 	return false;
 }
-bool m_parent_star(regex instance, char* text) {	
+bool m_parent_star(regex* instance, char* text) {	
 	while (instance) {
 		char* tmp_text = text;
 		do {
@@ -349,7 +344,7 @@ bool m_parent_star(regex instance, char* text) {
 	}
 	return true;
 }
-bool m_parent_plus(regex instance, char* text) {
+bool m_parent_plus(regex* instance, char* text) {
 	while(instance) {
 		if (PRINT_MESSAGES) printf("<mp_plus loop>\n");
 		char* tmp_text = text;
@@ -361,14 +356,14 @@ bool m_parent_plus(regex instance, char* text) {
 	}
 	return false;
 }
-bool m_parent_optional(regex instance, char* text) {
+bool m_parent_optional(regex* instance, char* text) {
 	if (PRINT_MESSAGES) printf("<mp_plus loop>\n");
 
 	if (instance != NULL && text != NULL)
 		return false;
 	else return false;
 }
-bool m_rule(regex instance, char* text) {
+bool m_rule(regex* instance, char* text) {
 	switch(re_getRule(instance)) {
 		case (R_CHAR):
 			return m_char(instance,text);
@@ -386,13 +381,13 @@ bool m_rule(regex instance, char* text) {
 			return false;
 	}
 }
-bool m_here(regex instance, char* text) {
+bool m_here(regex* instance, char* text) {
 //	if(PRINT_MESSAGES){printf("m_HERE: "); re_print(instance); printf("\n");}
 	//if the instance is empty, we are out of rules!
 	if (!instance)
 		return true;
 	//process rules
-	regex child = re_getChild(instance);
+	regex* child = re_getChild(instance);
 	//attempt to match from the children,
 	if (!child && m_rule(instance,text))
 		return true;
@@ -403,7 +398,7 @@ bool m_here(regex instance, char* text) {
 	else return false;
 }
 //match a single literal
-bool m_char(regex instance, char* text) {
+bool m_char(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_char: "); re_print(instance); printf("%s\n", text);}
 	if(re_getLiteral(instance) == *text){
 		return m_here(re_getNext(instance), text+1);
@@ -411,7 +406,7 @@ bool m_char(regex instance, char* text) {
 	else return false;
 }
 //match the instance 0 or more times
-bool m_star(regex instance, char* text) {
+bool m_star(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_star: "); re_print(instance); printf("%s\n", text);}
 	do {
 		if (m_here(re_getNext(instance), text))
@@ -420,7 +415,7 @@ bool m_star(regex instance, char* text) {
 	return false;
 }
 //match one or more times
-bool m_plus(regex instance, char* text) {
+bool m_plus(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_plus: "); re_print(instance); printf("%s\n", text);}
 	while (*text != '\0' && re_getLiteral(instance) == *++text) {
 		if (m_here(re_getNext(instance), text+1)) {
@@ -430,7 +425,7 @@ bool m_plus(regex instance, char* text) {
 	return 0;
 }
 //match ZERO or ONE times
-bool m_optional(regex instance, char* text) {
+bool m_optional(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_opt: "); re_print(instance); printf("%s\n", text);}
 	if (m_char(instance, text)) 		//if we find the character
 		return m_here(re_getNext(instance), text+1);
@@ -438,19 +433,19 @@ bool m_optional(regex instance, char* text) {
 		return m_here(re_getNext(instance), text);
 }
 //mathes an alphabetical character
-bool m_alpha(regex instance, char* text) {
+bool m_alpha(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_alpha: "); re_print(instance); printf("%s\n", text);}
 	if (isalpha(*text))
 		return m_here(re_getNext(instance), text+1);
 	return false;
 }
-bool m_digit(regex instance, char* text) {
+bool m_digit(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_digit: "); re_print(instance); printf("%s\n", text);}
 	if (isdigit(*text))
 		return m_here(re_getNext(instance), text+1);
 	return false;
 }
-bool m_alphanum(regex instance, char* text) {
+bool m_alphanum(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_alphanum: "); re_print(instance); printf("%s\n", text);}
 	if (isalnum(*text))
 		return m_here(re_getNext(instance), text+1);
@@ -476,7 +471,7 @@ int main(int argc, char** argv) {
 		input_len += strlen(argv[a]);
 	input_len += (argc-2); 		//because spaces are considered separators
 					//we have to add them back in.
-	input_text = calloc(1,input_len); //calloc to initialize memory to 0. unsure of the importance, but valgrind wasn't happy without it
+	input_text = (char*)calloc(1,input_len); //calloc to initialize memory to 0. unsure of the importance, but valgrind wasn't happy without it
 //set input text
 	input_anchor = input_text; //set the anchor to the beginning of the input text
 	for (a = 2; a < argc; a++) { 			//for-each arg after 1
@@ -489,8 +484,8 @@ int main(int argc, char** argv) {
 //output
 	if (PRINT_MESSAGES)
 		printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
-	regex regexpr = re_create_f_str(regex_expression);
-	regex instance = regexpr;
+	regex* regexpr = re_create_f_str(regex_expression);
+	regex* instance = regexpr;
 	while(instance && PRINT_MESSAGES) {
 		re_print(instance);
 		printf("\n");
@@ -510,7 +505,7 @@ int main(int argc, char** argv) {
 	printf("%s\n", (match(regexpr, input_text))? "match" : "no match");
 	instance = regexpr;
 	while(instance) {
-		regex next_inst;
+		regex* next_inst;
 		if (re_getChild(instance))
 			next_inst = re_getChild(instance);
 		else if (re_getAlternate(instance))
