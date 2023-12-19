@@ -8,12 +8,14 @@ class regex {
 		regex(int,int);
 		int getRule();
 		void setRule(int);
-		int literal;
+		int getLiteral();
+
 		class regex* next;
 		class regex* alternate;
 		class regex* child;
 	private:
 		int rule;
+		int literal;
 };
 //the rules that change functionality
 //some rules such as using a "\" to indicate a symbol is literal,
@@ -41,7 +43,6 @@ std::string rules_names[] = {
 };
 /** 	      prototypes 	        **/
 void re_destroy(regex*);   
-int re_getLiteral(regex*);
 regex* re_getNext(regex*);
 void re_setNext(regex*, regex*);
 void re_setAlternate(regex*, regex*);
@@ -78,8 +79,8 @@ void regex::setRule(int _rule) {
 	rule = _rule;
 }
 //gets the literal of the node
-int re_getLiteral(regex* instance) {
-	return instance->literal;
+int regex::getLiteral() {
+	return literal;
 }
 //returns the next node from the node
 regex* re_getNext(regex* instance) {
@@ -112,7 +113,7 @@ regex* re_getChild(regex* instance) {
 void re_print(regex* instance) {
 	if (instance)
 		printf("[Rule: %s | Literal: %c | Next? : %s | Alt?: %s | Child?: %s]",
-				rules_names[instance->getRule()].c_str(), instance->literal,
+				rules_names[instance->getRule()].c_str(), instance->getLiteral(),
 				(instance->next) ? "Yes" : "No",
 				(re_getAlternate(instance) ? "yes" : "no"),
 				(re_getChild(instance) ? "yes" : "no"));
@@ -340,7 +341,7 @@ bool m_parent_star(regex* instance, char* text) {
 			if (PRINT_MESSAGES) printf("<mp_star loop>\n");
 			if (m_here(instance, text))
 				return true;
-		} while (*text != '\0' && re_getLiteral(instance) == *tmp_text++); //I have a feeling this logic will bite me one day
+		} while (*text != '\0' && instance->getLiteral() == *tmp_text++); //I have a feeling this logic will bite me one day
 		instance = re_getAlternate(instance);	
 	}
 	return true;
@@ -349,7 +350,7 @@ bool m_parent_plus(regex* instance, char* text) {
 	while(instance) {
 		if (PRINT_MESSAGES) printf("<mp_plus loop>\n");
 		char* tmp_text = text;
-		while (*text != '\0' && re_getLiteral(instance) == *++tmp_text) {
+		while (*text != '\0' && instance->getLiteral() == *++tmp_text) {
 			if (m_here(instance,text))
 				return true;
 		};
@@ -401,7 +402,7 @@ bool m_here(regex* instance, char* text) {
 //match a single literal
 bool m_char(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_char: "); re_print(instance); printf("%s\n", text);}
-	if(re_getLiteral(instance) == *text){
+	if(instance->getLiteral() == *text){
 		return m_here(re_getNext(instance), text+1);
 	}
 	else return false;
@@ -412,13 +413,13 @@ bool m_star(regex* instance, char* text) {
 	do {
 		if (m_here(re_getNext(instance), text))
 			return true;
-	} while (*text != '\0' && re_getLiteral(instance) == *text++);
+	} while (*text != '\0' && instance->getLiteral() == *text++);
 	return false;
 }
 //match one or more times
 bool m_plus(regex* instance, char* text) {
 	if(PRINT_MESSAGES){printf("m_plus: "); re_print(instance); printf("%s\n", text);}
-	while (*text != '\0' && re_getLiteral(instance) == *++text) {
+	while (*text != '\0' && instance->getLiteral() == *++text) {
 		if (m_here(re_getNext(instance), text+1)) {
 			return true;
 		}
