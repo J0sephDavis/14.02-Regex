@@ -12,12 +12,14 @@ class regex {
 
 		regex* getNext();
 		void setNext(regex*);
-		class regex* alternate;
+		void setAlternate(regex*);
+		regex* getAlternate();
 		class regex* child;
 	private:
 		int rule;
 		int literal;
 		class regex* next;
+		class regex* alternate;
 };
 //the rules that change functionality
 //some rules such as using a "\" to indicate a symbol is literal,
@@ -45,8 +47,6 @@ std::string rules_names[] = {
 };
 /** 	      prototypes 	        **/
 void re_destroy(regex*);   
-void re_setAlternate(regex*, regex*);
-regex* re_getAlternate(regex*);
 void re_addChild(regex*, regex*);
 regex* re_getChild(regex*);
 void re_print(regex*);
@@ -90,18 +90,18 @@ regex* regex::getNext() {
 void regex::setNext(regex* next_instance) {
 	next = next_instance;
 }
-regex* re_getAlternate(regex* instance) {
-	return instance->alternate;
+regex* regex::getAlternate() {
+	return alternate;
 }
-void re_setAlternate(regex* instance, regex* alternate) {
-	if (instance->alternate != NULL)
-		re_setAlternate(instance->alternate, alternate);
+void regex::setAlternate(regex* _alternate) {
+	if (alternate != NULL)
+		alternate->setAlternate(_alternate);
 	else
-		instance->alternate = alternate;
+		alternate = _alternate;
 }
 void re_addChild(regex* instance, regex* child) {
 	if (instance->child) {
-		re_setAlternate(instance->child,child);
+		instance->child->setAlternate(child);
 	}
 	else
 		instance->child = child;
@@ -115,7 +115,7 @@ void re_print(regex* instance) {
 		printf("[Rule: %s | Literal: %c | Next? : %s | Alt?: %s | Child?: %s]",
 				rules_names[instance->getRule()].c_str(), instance->getLiteral(),
 				(instance->getNext()) ? "Yes" : "No",
-				(re_getAlternate(instance) ? "yes" : "no"),
+				(instance->getAlternate() ? "yes" : "no"),
 				(re_getChild(instance) ? "yes" : "no"));
 	else printf("[-]");
 }
@@ -263,7 +263,7 @@ regex* re_create_f_str(char* regexp) {
 						if (PRINT_MESSAGES) printf("\t\tii:child has no descendants,link to next\n");
 						tmp_child->setNext(tmp_re);
 					}
-					tmp_child = re_getAlternate(tmp_child);
+					tmp_child = tmp_child->getAlternate();
 				}
 				parent_node->setNext(tmp_re);
 				parent_node = NULL;
@@ -330,7 +330,7 @@ bool m_parent_char(regex* instance, char* text) {
 		if (PRINT_MESSAGES) printf("<mp_char loop>\n");
 		if (m_here(instance, text))
 			return true;
-		instance = re_getAlternate(instance);
+		instance = instance->getAlternate();
 	}
 	return false;
 }
@@ -342,7 +342,7 @@ bool m_parent_star(regex* instance, char* text) {
 			if (m_here(instance, text))
 				return true;
 		} while (*text != '\0' && instance->getLiteral() == *tmp_text++); //I have a feeling this logic will bite me one day
-		instance = re_getAlternate(instance);	
+		instance = instance->getAlternate();	
 	}
 	return true;
 }
@@ -354,7 +354,7 @@ bool m_parent_plus(regex* instance, char* text) {
 			if (m_here(instance,text))
 				return true;
 		};
-		instance = re_getAlternate(instance);
+		instance = instance->getAlternate();
 	}
 	return false;
 }
@@ -495,8 +495,8 @@ int main(int argc, char** argv) {
 			instance = re_getChild(instance);
 			printf("*\t");
 		}
-		else if (re_getAlternate(instance)) {
-			instance = re_getAlternate(instance);
+		else if (instance->getAlternate()) {
+			instance = instance->getAlternate();
 			printf("*\t");
 		}
 		//no kids or alternate
@@ -510,8 +510,8 @@ int main(int argc, char** argv) {
 		regex* next_inst;
 		if (re_getChild(instance))
 			next_inst = re_getChild(instance);
-		else if (re_getAlternate(instance))
-			next_inst = re_getAlternate(instance);
+		else if (instance->getAlternate())
+			next_inst = instance->getAlternate();
 		else
 			next_inst = instance->getNext();
 		re_destroy(instance);
