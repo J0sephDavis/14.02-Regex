@@ -6,11 +6,14 @@
 class regex {
 	public:
 		regex(int,int);
-	int rule;
-	int literal;
-	class regex* next;
-	class regex* alternate;
-	class regex* child;
+		int getRule();
+		void setRule(int);
+		int literal;
+		class regex* next;
+		class regex* alternate;
+		class regex* child;
+	private:
+		int rule;
 };
 //the rules that change functionality
 //some rules such as using a "\" to indicate a symbol is literal,
@@ -38,8 +41,6 @@ std::string rules_names[] = {
 };
 /** 	      prototypes 	        **/
 void re_destroy(regex*);   
-int re_getRule(regex* instance);
-void re_setRule(regex*, int);
 int re_getLiteral(regex*);
 regex* re_getNext(regex*);
 void re_setNext(regex*, regex*);
@@ -69,12 +70,12 @@ void re_destroy(regex* instance) {
 	delete instance;
 }
 //returns the rule of the node
-int re_getRule(regex* instance) {
-	return instance->rule;
+int regex::getRule() {
+	return rule;
 }
 //sets the rule of the node
-void re_setRule(regex* instance, int _rule) {
-	instance->rule = _rule;
+void regex::setRule(int _rule) {
+	rule = _rule;
 }
 //gets the literal of the node
 int re_getLiteral(regex* instance) {
@@ -111,7 +112,7 @@ regex* re_getChild(regex* instance) {
 void re_print(regex* instance) {
 	if (instance)
 		printf("[Rule: %s | Literal: %c | Next? : %s | Alt?: %s | Child?: %s]",
-				rules_names[instance->rule].c_str(), instance->literal,
+				rules_names[instance->getRule()].c_str(), instance->literal,
 				(instance->next) ? "Yes" : "No",
 				(re_getAlternate(instance) ? "yes" : "no"),
 				(re_getChild(instance) ? "yes" : "no"));
@@ -126,13 +127,13 @@ void re_print(regex* instance) {
 bool re_char_to_reptition_rule(regex* instance, char c) {
 	switch(c) {
 		case('*'):
-			re_setRule(instance,R_STAR);
+			instance->setRule(R_STAR);
 			return true;
 		case('?'):
-			re_setRule(instance,R_OPT);
+			instance->setRule(R_OPT);
 			return true;
 		case('+'):
-			re_setRule(instance,R_PLUS);
+			instance->setRule(R_PLUS);
 			return true;
 		default:
 			return false;
@@ -310,8 +311,8 @@ bool match(regex* expression, char* text) {
 	return false; 
 }
 bool m_parent(regex* instance, char* text) {
-	if(PRINT_MESSAGES){printf("M_PARENT:%s: ", rules_names[instance->rule].c_str()); re_print(instance); printf("%s\n", text);}
-	switch(re_getRule(instance)) {
+	if(PRINT_MESSAGES){printf("M_PARENT:%s: ", rules_names[instance->getRule()].c_str()); re_print(instance); printf("%s\n", text);}
+	switch(instance->getRule()) {
 		default:
 		case (R_CHAR):
 			return m_parent_char(re_getChild(instance),text);
@@ -364,7 +365,7 @@ bool m_parent_optional(regex* instance, char* text) {
 	else return false;
 }
 bool m_rule(regex* instance, char* text) {
-	switch(re_getRule(instance)) {
+	switch(instance->getRule()) {
 		case (R_CHAR):
 			return m_char(instance,text);
 		case (R_STAR):
