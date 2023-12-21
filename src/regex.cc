@@ -16,7 +16,9 @@
  * 10."ab#" -> accepts "ab1", "ab2", "ab9"
  * 11. "ab.*" -> accepts "ab", "ab1", "ab22222222222", "abf", "abZZZZZZZZz"
  * */
+#ifndef PRINT_MESSAGES
 #define PRINT_MESSAGES 1
+#endif
 //the rules that change functionality
 //some rules such as using a "\" to indicate a symbol is literal,
 //are handled during compilation & thus don't need a named rule.
@@ -39,7 +41,9 @@ enum substitution_type {
 static std::string rule_to_string(rules rule) {
 	switch(rule) {
 		default:
+#if PRINT_MESSAGES==1
 			std::cout << "defaulting in rule_to_string";
+#endif
 			[[fallthrough]];
 		case(R_DEFAULT):
 			return "DEFAULT";
@@ -71,12 +75,10 @@ class regex {
 		regex(int, substitution_type);
 		virtual ~regex() {
 			if (alternate != NULL) {
-				std::cout << "delete alternate\n";
 				delete alternate;
 			}
 			//because the alternate will also point to next
 			else if (next != NULL) {
-				std::cout << "delete next\n";
 				delete next;
 			}
 		}
@@ -142,7 +144,9 @@ bool regex::accepts(int character) {
 		case(S_DIGIT):
 			return std::isdigit(character);
 		default:
+#if PRINT_MESSAGES==1
 			std::cout << "::accepts() - sub rule defaulting to S_LITERAL\n\n";
+#endif
 			[[fallthrough]];
 		case(S_LITERAL):
 			return character == literal;
@@ -186,15 +190,16 @@ void re_print(regex* instance) {
 //returns true if the expression found a match in the text, otherwise it returns false.
 bool match(regex* expression, char* text) {
 	do {
-		if(PRINT_MESSAGES)
+#if PRINT_MESSAGES==1
 			std::cout << "\n<-match-loop->\t" << text << "\n";
+#endif
 		if (expression->match_here(text))
 			return true;
 	} while(*text++ != '\0');
 	return false; 
 }
 bool regex::match_here(char *text) {
-	if (PRINT_MESSAGES) {
+#if PRINT_MESSAGES==1
 		std::cout << "match:\t";
 		if (sub_rule == S_LITERAL)
 			std::cout << (char)getLiteral() << " == " << *text;
@@ -202,7 +207,7 @@ bool regex::match_here(char *text) {
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "alt:" << std::string((alternate)?"T":"F") << "\t";
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-	}
+#endif
 /* Match
  * process current rule.
  * If returns true: process next.
@@ -222,14 +227,14 @@ bool regex::match_here(char *text) {
 	return false;
 }
 bool regex_star::match_here(char *text) {
-	if (PRINT_MESSAGES) {
+#if PRINT_MESSAGES==1
 		std::cout << "match*:\t";
 		if (sub_rule == S_LITERAL)
 			std::cout << (char)getLiteral() << " == " << *text;
 		else
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-	}
+#endif
 	//TODO create a flag for shortest or longest match. This is currently a shortest match implementation
 	//perform the absolute shortest match if we have no options.
 	if (next == NULL) {
@@ -252,14 +257,14 @@ bool regex_star::match_here(char *text) {
 }
 
 bool regex_plus::match_here(char* text) {
-	if (PRINT_MESSAGES) {
+#if PRINT_MESSAGES==1
 		std::cout << "match+:\t";
 		if (sub_rule == S_LITERAL)
 			std::cout << (char)getLiteral() << " == " << *text;
 		else
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-	}
+#endif
 	//TODO Allow for a longest match (currently doing shortest)
 	if (next == NULL && accepts(*text)) return true;
 	if (next != NULL) {
@@ -275,14 +280,14 @@ bool regex_plus::match_here(char* text) {
 	return false;
 }
 bool regex_opt::match_here(char *text) {
-	if (PRINT_MESSAGES) {
+#if PRINT_MESSAGES==1
 		std::cout << "match?:\t";
 		if (sub_rule == S_LITERAL)
 			std::cout << (char)getLiteral() << " == " << *text;
 		else
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-	}
+#endif
 	if (accepts(*text)) {
 		if (next != NULL ) return next->match_here(++text);
 		else return true;
@@ -336,7 +341,9 @@ regex* create_from_string(std::string regex_tape) {
 	bool do_alternative = false;
 	bool escaped_symbol = false;
 	for (size_t i = 0; i < regex_tape.size(); i++) {
+#if PRINT_MESSAGES==1
 		std::cout << "cfs: i=" << i << "\n";
+#endif
 	//begin compilation
 		regex* current_node;
 		rules current_rule = R_DEFAULT;
@@ -345,29 +352,39 @@ regex* create_from_string(std::string regex_tape) {
 		auto subrule = symbol_to_srule(regex_tape.at(i));
 		int literal = regex_tape.at(i);
 		if (literal == '(') {
+#if PRINT_MESSAGES==1
 			std::cout << "set do_alternative. Skip...\n";
+#endif
 			do_alternative = true;
 			continue;
 		}
 		else if (literal == ')') {
+#if PRINT_MESSAGES==1
 			std::cout << "unset do_alternative. Skip...\n";
+#endif
 			do_alternative = false;
 			continue;
 		}
 		else if (literal == '\\' and escaped_symbol == false) {
+#if PRINT_MESSAGES==1
 			std::cout << "set escaped_symbol. Skip...\n";
+#endif
 			escaped_symbol = true;
 			continue;
 		}
+#if PRINT_MESSAGES==1
 		std::cout << "CR:\t" << rule_to_string(current_rule) << "\n";
 		std::cout << "SR:\t" << sub_to_string(subrule) << "\n";
 		std::cout << "L:\t" << (char)literal << "\n";
 		std::cout << "Alt?\t" << std::string((do_alternative)?"true":"false") << "\n";
 		std::cout << "Esc?\t" << std::string((escaped_symbol)?"true":"false") << "\n";
+#endif
 		if (escaped_symbol) {
 			subrule = S_LITERAL;
 			escaped_symbol = false;
+#if PRINT_MESSAGES==1
 			std::cout << "subRule = S_LITERAL, unset Esc\n";
+#endif
 		}
 		switch (current_rule) {
 			case R_DEFAULT:
@@ -407,10 +424,14 @@ regex* create_from_string(std::string regex_tape) {
 			last_node = current_node;
 		}
 		if (current_rule != R_DEFAULT) i+=1; //consume an extra character if we set a rule
+#if PRINT_MESSAGES==1
 		std::cout << "------\n";
+#endif
 	}//end compilation
 	if (alternate_node != NULL) {
+#if PRINT_MESSAGES==1
 		std::cout << "ending with alt node != NULL. last.setNext(alt)\n";
+#endif
 		//This occurs when the regex string ends with a ')'
 		last_node->setNext(alternate_node);
 	}
@@ -443,8 +464,7 @@ int main(int argc, char** argv) {
 			*input_anchor++ = ' '; //add a space BETWIXT words
 	}
 //output
-	if (PRINT_MESSAGES)
-		printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
+	printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
 	regex* regexpr = create_from_string(regex_expression);
 
 	regex* instance = regexpr;
