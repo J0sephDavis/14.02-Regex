@@ -317,6 +317,7 @@ substitution_type symbol_to_srule(char c) {
 	}
 }
 //TODO lint input, e.g., (ab)* is invalid, but (a*b*) is valid
+//TODO implement this as a constructor of regex
 //create a node-tree of REs from an input string
 regex* create_from_string(std::string regex_tape) {
 	regex* root_node = NULL;
@@ -387,7 +388,6 @@ regex* create_from_string(std::string regex_tape) {
 				alternate_node->addAlternate(current_node);
 		}
 		else {
-			std::cout << "dont-alt\n";
 			if (alternate_node != NULL) {
 				last_node->setNext(alternate_node);
 				last_node = alternate_node;
