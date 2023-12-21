@@ -70,13 +70,14 @@ class regex {
 	public:
 		regex(int, substitution_type);
 		virtual ~regex() {
-			if (next != NULL) {
-				std::cout << "delete next\n";
-				delete next;
-			}
 			if (alternate != NULL) {
 				std::cout << "delete alternate\n";
 				delete alternate;
+			}
+			//because the alternate will also point to next
+			else if (next != NULL) {
+				std::cout << "delete next\n";
+				delete next;
 			}
 		}
 		int getLiteral();
