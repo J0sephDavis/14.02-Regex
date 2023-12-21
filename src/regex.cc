@@ -2,7 +2,6 @@
 #include <stdexcept>
 #include <string.h>
 #include <iostream>
-#include <vector>
 #include <string>
 /* 1."abc" -> 	acceptsthe literal string "abc"
  * 2."a?bc" ->	accepts "abc" or "bc".
