@@ -316,10 +316,12 @@ substitution_type symbol_to_srule(char c) {
 			return S_LITERAL;
 	}
 }
+//TODO lint input, e.g., (ab)* is invalid, but (a*b*) is valid
 //create a node-tree of REs from an input string
 regex* create_from_string(std::string regex_tape) {
 	regex* root_node = NULL;
 	regex* last_node = NULL;
+	regex* alternate_node = NULL; //holds the node which has alternates
 	bool do_alternative = false;
 	for (size_t i = 0; i < regex_tape.size(); i++) {
 		std::cout << "cfs: i=" << i << "\n";
@@ -342,7 +344,7 @@ regex* create_from_string(std::string regex_tape) {
 		}
 		std::cout << "CR:\t" << rule_to_string(current_rule) << "\n";
 		std::cout << "SR:\t" << sub_to_string(subrule) << "\n";
-		std::cout << "L:\t" << literal << "\n";
+		std::cout << "L:\t" << (char)literal << "\n";
 		switch (current_rule) {
 			case R_DEFAULT:
 				current_node = new regex(literal, subrule);
@@ -357,30 +359,34 @@ regex* create_from_string(std::string regex_tape) {
 				current_node = new regex_star(literal, subrule);
 				break;
 		}
-		if (root_node == NULL)
+		if (root_node == NULL) {
 			root_node = current_node;
-		else {
-			if (do_alternative)
-				last_node->addAlternate(current_node);
-			else
-				last_node->setNext(current_node);
+			last_node = current_node;
 		}
-		last_node = current_node;
+		if (do_alternative) {
+			if (alternate_node == NULL)
+				alternate_node = current_node;
+			else
+				alternate_node->addAlternate(current_node);
+		}
+		else {
+			std::cout << "dont-alt\n";
+			if (alternate_node != NULL) {
+				last_node->setNext(alternate_node);
+				last_node = alternate_node;
+				alternate_node = NULL;
+			}
+			last_node->setNext(current_node);
+			last_node = current_node;
+		}
 		if (current_rule != R_DEFAULT) i+=1; //consume an extra character if we set a rule
+		std::cout << "------\n";
 	}//end compilation
+	if (alternate_node != NULL) {
+		//This occurs when the regex string ends with a ')'
+		last_node->setNext(alternate_node);
+	}
 	return root_node;	
-//	REGEX STRING: "ab(qz)d"
-//	regex_plus regexpr('a');
-//	
-//	regex* next_regex = new regex_plus('b');
-//	regexpr.setNext(next_regex);
-//
-//	regex* tmp_regex = new regex('q');
-//	tmp_regex->addAlternate(new regex('z'));
-//	next_regex->setNext(tmp_regex);
-//	next_regex = next_regex->getNext();
-//
-//	next_regex->setNext(new regex('d'));
 }
 /*** 				    main 					    ***/
 int main(int argc, char** argv) {
