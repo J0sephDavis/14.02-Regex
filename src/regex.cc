@@ -69,6 +69,16 @@ std::string sub_to_string(substitution_type sub_rule) {
 class regex {
 	public:
 		regex(int, substitution_type);
+		virtual ~regex() {
+			if (next != NULL) {
+				std::cout << "delete next\n";
+				delete next;
+			}
+			if (alternate != NULL) {
+				std::cout << "delete alternate\n";
+				delete alternate;
+			}
+		}
 		int getLiteral();
 
 		regex* getNext();
@@ -284,13 +294,12 @@ bool regex_opt::match_here(char *text) {
 	}
 	return false;
 }
-//
-///*** 				regex compilation 				    ***/
-///* The following code is for compiling the    *//** 	      prototypes 	        **/
+
+/*** 				regex compilation 				    ***/
+/* The following code is for compiling the    *//** 	      prototypes 	        **/
 /*regex from an input string into the linked  */rules symbol_to_rrule(regex*, char);
 /*regex nodes.                                */substitution_type symbol_to_srule(char);
-///*                                            */regex* re_create_f_str(char*);
-//if the character is a repetition rule, the RE's rule will be changed. otherwise it is not touched & false is returned
+//Return the rule associated with a symbol. R_DEFAULT if there is no matching rule
 rules symbol_to_rrule(char c) {
 	switch(c) {
 		case('*'):
@@ -303,7 +312,7 @@ rules symbol_to_rrule(char c) {
 			return R_DEFAULT;
 	}
 }
-//return either the matching substitution rule or R_CHAR
+//Return the substitution rule associated with the symbol. S_LITERAL for non-matching symbol
 substitution_type symbol_to_srule(char c) {
 	switch(c) {
 		case('.'):
@@ -417,7 +426,6 @@ int main(int argc, char** argv) {
 	if (argc < 3) return -1;
 //set regex_expression
 	regex_expression = argv[1];
-	//regex_expression = malloc(strlen(argv[2]));
 //allocate input_text
 	for (a = 2; a < argc; a++)
 		input_len += strlen(argv[a]);
@@ -436,7 +444,6 @@ int main(int argc, char** argv) {
 //output
 	if (PRINT_MESSAGES)
 		printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
-//	regex* regexpr = re_create_f_str(regex_expression);
 	regex* regexpr = create_from_string(regex_expression);
 
 	regex* instance = regexpr;
@@ -453,14 +460,6 @@ int main(int argc, char** argv) {
 		}
 	}
 	printf("%s\n", (match(regexpr, input_text))? "match" : "no match");
-	while(instance) {
-		regex* next_inst;
-		if (instance->getAlternate())
-			next_inst = instance->getAlternate();
-		else
-			next_inst = instance->getNext();
-	//	re_destroy(instance);
-		instance = next_inst;
-	}
 	free(input_text);
+	delete (regexpr);
 }
