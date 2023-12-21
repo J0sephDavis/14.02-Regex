@@ -323,6 +323,7 @@ regex* create_from_string(std::string regex_tape) {
 	regex* last_node = NULL;
 	regex* alternate_node = NULL; //holds the node which has alternates
 	bool do_alternative = false;
+	bool escaped_symbol = false;
 	for (size_t i = 0; i < regex_tape.size(); i++) {
 		std::cout << "cfs: i=" << i << "\n";
 	//begin compilation
@@ -342,9 +343,21 @@ regex* create_from_string(std::string regex_tape) {
 			do_alternative = false;
 			continue;
 		}
+		else if (literal == '\\' and escaped_symbol == false) {
+			std::cout << "set escaped_symbol. Skip...\n";
+			escaped_symbol = true;
+			continue;
+		}
 		std::cout << "CR:\t" << rule_to_string(current_rule) << "\n";
 		std::cout << "SR:\t" << sub_to_string(subrule) << "\n";
 		std::cout << "L:\t" << (char)literal << "\n";
+		std::cout << "Alt?\t" << std::string((do_alternative)?"true":"false") << "\n";
+		std::cout << "Esc?\t" << std::string((escaped_symbol)?"true":"false") << "\n";
+		if (escaped_symbol) {
+			subrule = S_LITERAL;
+			escaped_symbol = false;
+			std::cout << "subRule = S_LITERAL, unset Esc\n";
+		}
 		switch (current_rule) {
 			case R_DEFAULT:
 				current_node = new regex(literal, subrule);
@@ -362,8 +375,12 @@ regex* create_from_string(std::string regex_tape) {
 		if (root_node == NULL) {
 			root_node = current_node;
 			last_node = current_node;
+			if (do_alternative && alternate_node == NULL) {
+				//the alternate node would likely be anything BUT null at this time
+				alternate_node = current_node;
+			}
 		}
-		if (do_alternative) {
+		else if (do_alternative) {
 			if (alternate_node == NULL)
 				alternate_node = current_node;
 			else
@@ -383,6 +400,7 @@ regex* create_from_string(std::string regex_tape) {
 		std::cout << "------\n";
 	}//end compilation
 	if (alternate_node != NULL) {
+		std::cout << "ending with alt node != NULL. last.setNext(alt)\n";
 		//This occurs when the regex string ends with a ')'
 		last_node->setNext(alternate_node);
 	}
