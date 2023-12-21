@@ -3,7 +3,14 @@
 #include <iostream>
 #include <vector>
 #include <string>
-
+/* 1."abc" -> 	acceptsthe literal string "abc"
+ * 2."a?bc" ->	accepts "abc" or "bc".
+ * 3."ab*c" -> 	accepts "ac", "abc", "abbbbbbbbbbbbbbbbc"
+ * 4."ab+c" -> 	accepts "abc", "abbbbbbbbbbbbbbc"
+ * 5."ab(CD)" -> 	accepts "abC", "abD"
+ * 6."ab(C*D*)"->	accepts "ab", "abC", "abD", "abCCCCCCCC", "abDDDDDD"
+ * 7."ab(CD)*" -> acceptance to be determined when compilation/parsing code is rewritten. (Possibly make equivalent to input string 6? Pre-processing or somesuch method)
+ * */
 #define PRINT_MESSAGES 1
 //the rules that change functionality
 //some rules such as using a "\" to indicate a symbol is literal,
@@ -198,8 +205,6 @@ bool regex::match_here(char *text) {
 	return false;
 }
 bool regex_star::match_here(char *text) {
-	//TODO create a flag for shortest or longest match. This is currently a shortest match implementation
-	//TODO handle child case
 	if (PRINT_MESSAGES) {
 		std::cout << "match*:\t";
 		if (sub_rule == S_LITERAL)
@@ -208,12 +213,40 @@ bool regex_star::match_here(char *text) {
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
 	}
-	if (next == NULL) {
-		return accepts(*text);//literal == *text;
+	//TODO create a flag for shortest or longest match. This is currently a shortest match implementation
+	if (child == NULL) {
+		std::cout << "m*-c-x00\n";
+		//perform the absolute shortest match if we have no options.
+		if (next == NULL) {
+			std::cout << "m*-n-x00\n";
+			//the shortest possible match in R_STAR is NO match
+			return true;
+		}
+		//continue attempting the current rule
+		else {
+			std::cout << "m*-has-next\n";
+			do {
+				if(next->match_here(text)) return true;
+			} while (*text != '\0' && accepts(*text++));
+		}
+		//If we failed to apply the rules, attempt an alternate branch
+		if (alternate != NULL) {
+			if (alternate->match_here(text)) return true;
+		}
+		//no valid expressions, returns false by default
 	}
-	do {
-		if(next->match_here(text)) return true;
-	} while (*text != '\0' && accepts(*text++));
+	else { //CHILD case
+		std::cout << "m* - child case:\n";
+		//for-each child instance (current implementation assumes they are a list of alternatives)
+		for (regex *c_instance = child; c_instance != NULL; c_instance = c_instance->getAlternate()) {
+			char *c_text = text; //text for the child string
+			std::cout << "\tc_text:[" << c_text << "]\n";
+			do { //R_STAR
+				if(c_instance->match_here(c_text))
+					return true;
+			} while (*c_text != '\0' && c_instance->accepts(*c_text));
+		}
+	}
 	return false;
 }
 
@@ -280,16 +313,18 @@ int main(int argc, char** argv) {
 	if (PRINT_MESSAGES)
 		printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
 //	regex* regexpr = re_create_f_str(regex_expression);
-	regex_plus regexpr('f');
+//	REGEX STRING: "ab(C*D*)"
+	regex_plus regexpr('a');
 	
-	regex* next_regex = new regex_opt('Z', S_ALPHA);
+	regex* next_regex = new regex_plus('b');
 	regexpr.setNext(next_regex);
 
-	regex* tmp_regex = new regex_star('o');
+	regex* tmp_regex = new regex_star('('); // parent node
 	next_regex->setNext(tmp_regex);
-
 	next_regex = next_regex->getNext();
-	next_regex->setNext(new regex('x'));
+
+	next_regex->addChild(new regex('C'));
+	next_regex->addChild(new regex('D'));
 
 	regex* instance = &regexpr;
 	while(instance && PRINT_MESSAGES) {
