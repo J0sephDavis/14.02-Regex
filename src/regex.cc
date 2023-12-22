@@ -4,7 +4,6 @@
 #include <iostream>
 #include <string>
 #include <catch2/catch_test_macros.hpp>
-#define CATCH_CONFIG_MAIN
 /* 1."abc" -> 	acceptsthe literal string "abc"
  * 2."a?bc" ->	accepts "abc" or "bc".
  * 3."ab*c" -> 	accepts "ac", "abc", "abbbbbbbbbbbbbbbbc"
@@ -490,6 +489,7 @@ int main(int argc, char** argv) {
 	delete (regexpr);
 }
 #else
+#define CATCH_CONFIG_MAIN
 TEST_CASE( "test match on a single literal" ) {
 	regex* expression = create_from_string("a");
 	//
