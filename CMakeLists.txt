@@ -13,7 +13,6 @@ FetchContent_Declare(
 	GIT_TAG v3.5.0
 )
 FetchContent_MakeAvailable(Catch2)
-
 add_executable(regex
 	src/regex.cc
 )
@@ -21,6 +20,11 @@ target_include_directories(regex
 	PRIVATE src
 )
 option(PRINT_MESSAGES "Print debug information" OFF)
+option(UNIT_TEST"enable unit testing" OFF)
+if (UNIT_TEST)
+	message("regex:: unit testing enabled")
+	target_compile_definitions(regex PRIVATE UNIT_TESTING)
+endif()
 if (PRINT_MESSAGES)
 	message("regex:: printing enabled")
 	target_compile_definitions(regex PRIVATE PRINT_MESSAGES=1)
