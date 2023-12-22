@@ -283,7 +283,7 @@ char* regex_plus::match_here(char* text) {
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
 #endif
 	//TODO Allow for a longest match (currently doing shortest)
-	if (next == NULL && accepts(*text)) return text;
+	if (next == NULL && accepts(*text)) return text+1;
 	if (next != NULL) {
 		for (char* tmp_text = text;*tmp_text != '\0' && accepts(*tmp_text);tmp_text++) {
 			//we use the tmp array here so that if it fails we can attempt an alternate match.
@@ -309,7 +309,7 @@ char* regex_opt::match_here(char *text) {
 #endif
 	if (accepts(*text)) {
 		if (next != NULL ) return next->match_here(++text);
-		else return text;
+		else return text+1;
 	}
 	else {
 		auto retVal = next->match_here(text);
