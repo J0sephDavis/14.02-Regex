@@ -19,21 +19,15 @@
 #ifndef PRINT_MESSAGES
 #define PRINT_MESSAGES 1
 #endif
-//the rules that change functionality
-//some rules such as using a "\" to indicate a symbol is literal,
-//are handled during compilation & thus don't need a named rule.
-//
-//using an enum is restricting, unless I guess we just make every combination of values.. handling (a*bc)? means a parent of R_OPT with child a* who has alternates b & c.
-//but if we want to use alternates,
+//TODO: Implemented longest-match functionality for repetition options.
 enum rules {
 	R_DEFAULT,
-	//these rules are reserved fo class printouts
 	R_STAR,
 	R_PLUS,
 	R_OPT,
 };
 enum substitution_type {
-	S_LITERAL = 0,
+	S_LITERAL,
 	S_DIGIT, 	//DIGIT - numbers 0-9
 	S_ALPHA, 	//ALPHA - letters a-zA-Z
 	S_ALNUM, //ALPHANUMERIC - any letter or number
@@ -250,7 +244,6 @@ char* regex_star::match_here(char *text) {
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
 #endif
-	//TODO create a flag for shortest or longest match. This is currently a shortest match implementation
 	//perform the absolute shortest match if we have no options.
 	if (next == NULL) {
 		//the shortest possible match in R_STAR is NO match
@@ -282,7 +275,6 @@ char* regex_plus::match_here(char* text) {
 			std::cout << sub_as_string() << " == " << *text;
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
 #endif
-	//TODO Allow for a longest match (currently doing shortest)
 	if (next == NULL && accepts(*text)) return text+1;
 	if (next != NULL) {
 		for (char* tmp_text = text;*tmp_text != '\0' && accepts(*tmp_text);tmp_text++) {
