@@ -86,7 +86,8 @@ class regex {
 
 		regex* getNext();
 		virtual void setNext(regex*);
-		virtual bool match_here(char* text);
+		//return a char* to the pointer where the match ends. This can be used to determine where the match occurred, and its length
+		virtual char* match_here(char* text);
 		virtual rules getRule() {
 			return R_DEFAULT;
 		}
@@ -109,21 +110,21 @@ class regex_star : public regex {
 	public:
 		regex_star(int _literal, substitution_type _sub_rule = S_LITERAL) :
 			regex(_literal,_sub_rule) {};
-		bool match_here(char* text) override;
+		char* match_here(char* text) override;
 		rules getRule() override { return R_STAR; };
 };
 class regex_plus : public regex {
 	public:
 		regex_plus(int _literal, substitution_type _sub_rule = S_LITERAL) :
 			regex(_literal, _sub_rule) {};
-		bool match_here(char* text) override;
+		char* match_here(char* text) override;
 		rules getRule() override { return R_PLUS; };
 };
 class regex_opt : public regex {
 	public:
 		regex_opt(int _literal, substitution_type _sub_rule = S_LITERAL) :
 			regex(_literal, _sub_rule) {};
-		bool match_here(char* text) override;
+		char* match_here(char* text) override;
 		rules getRule() override { return R_OPT; };
 };
 /** 	      prototypes 	        **/
@@ -190,18 +191,29 @@ void re_print(regex* instance) {
 //returns true if the expression found a match in the text, otherwise it returns false.
 bool match(regex* expression, std::string input_text) {
 	char* text = (char*)calloc(1,input_text.size());
+	char* start_of_text = text;
 	strncpy(text, input_text.c_str(), input_text.size());
+	char* end_of_match = NULL;
 	do {
 #if PRINT_MESSAGES==1
 			std::cout << "\n<-match-loop->\t" << text << "\n";
 #endif
-		if (expression->match_here(text))
-			return true;
+		end_of_match = expression->match_here(text);
+		if (end_of_match != NULL)
+			break;
 	} while(*text++ != '\0');
+	if (end_of_match != NULL) {
+		std::cout << "found match of length:" << (end_of_match - text) << "\n";
+		std::cout << "match begins after " << (text - start_of_text) << " chars\n";
+		char* matched_text = (char*)calloc(1, end_of_match - text);
+		strncpy(matched_text, text, end_of_match-text);
+		std::cout << "matched text: [" << std::string(matched_text) << "]\n";
+		return true;
+	}
 	return false; 
-	free(text);
+	free(start_of_text);
 }
-bool regex::match_here(char *text) {
+char* regex::match_here(char *text) {
 #if PRINT_MESSAGES==1
 		std::cout << "match:\t";
 		if (sub_rule == S_LITERAL)
@@ -219,7 +231,7 @@ bool regex::match_here(char *text) {
  * */
 	if (accepts(*text)) {
 		if (next == NULL) {
-			return true;
+			return text+1;
 		}
 		return (next->match_here(text+1));
 	}
@@ -227,9 +239,9 @@ bool regex::match_here(char *text) {
 		return alternate->match_here(text);
 	}
 	//no valid expressions, returns false by default
-	return false;
+	return NULL;
 }
-bool regex_star::match_here(char *text) {
+char* regex_star::match_here(char *text) {
 #if PRINT_MESSAGES==1
 		std::cout << "match*:\t";
 		if (sub_rule == S_LITERAL)
@@ -242,24 +254,26 @@ bool regex_star::match_here(char *text) {
 	//perform the absolute shortest match if we have no options.
 	if (next == NULL) {
 		//the shortest possible match in R_STAR is NO match
-		return true;
+		return text;
 	}
 	//continue attempting the current rule
 	else {
 		char* tmp_text = text; //used so that if/when we call the alternate case, we have the original starting point
 		do {
-			if(next->match_here(tmp_text)) return true;
+			auto retVal = next->match_here(tmp_text);
+			if(retVal != NULL) return retVal;
 		} while (*tmp_text != '\0' && accepts(*tmp_text++));
 	}
 	//Failed to match expressions. Attempt alternate
 	if (alternate != NULL) {
-		if (alternate->match_here(text)) return true;
+		auto retVal = alternate->match_here(text);
+		if (retVal != NULL) return retVal;
 	}
 	//no valid expressions, returns false by default
-	return false;
+	return NULL;
 }
 
-bool regex_plus::match_here(char* text) {
+char* regex_plus::match_here(char* text) {
 #if PRINT_MESSAGES==1
 		std::cout << "match+:\t";
 		if (sub_rule == S_LITERAL)
@@ -269,20 +283,22 @@ bool regex_plus::match_here(char* text) {
 		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
 #endif
 	//TODO Allow for a longest match (currently doing shortest)
-	if (next == NULL && accepts(*text)) return true;
+	if (next == NULL && accepts(*text)) return text;
 	if (next != NULL) {
 		for (char* tmp_text = text;*tmp_text != '\0' && accepts(*tmp_text);tmp_text++) {
 			//we use the tmp array here so that if it fails we can attempt an alternate match.
 			//Otherwise, we could just store the offset instead of duplicating text
-			if (next->match_here(tmp_text+1)) return true;
+			auto retVal = next->match_here(tmp_text+1);
+			if (retVal != NULL) return retVal;
 		}
 	}
 	if (alternate != NULL) {
-		if(alternate->match_here(text)) return true;
+		auto retVal = alternate->match_here(text);
+		if (retVal != NULL) return retVal;
 	}
-	return false;
+	return NULL;
 }
-bool regex_opt::match_here(char *text) {
+char* regex_opt::match_here(char *text) {
 #if PRINT_MESSAGES==1
 		std::cout << "match?:\t";
 		if (sub_rule == S_LITERAL)
@@ -293,15 +309,17 @@ bool regex_opt::match_here(char *text) {
 #endif
 	if (accepts(*text)) {
 		if (next != NULL ) return next->match_here(++text);
-		else return true;
+		else return text;
 	}
 	else {
-		if (next->match_here(text)) return true;
+		auto retVal = next->match_here(text);
+		if (retVal) return retVal;
 		else if (alternate != NULL) {
-			if (alternate->match_here(text)) return true;
+			retVal = alternate->match_here(text);
+			if (retVal != NULL) return retVal;
 		}
 	}
-	return false;
+	return NULL;
 }
 
 /*** 				regex compilation 				    ***/
