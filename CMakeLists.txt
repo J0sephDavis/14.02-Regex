@@ -1,11 +1,9 @@
 cmake_minimum_required (VERSION 3.13)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
-
 project(regex
   LANGUAGES CXX
-  VERSION 1.1.0
+  VERSION 1.2.0
 )
-
 Include(FetchContent)
 FetchContent_Declare(
 	Catch2
@@ -13,17 +11,21 @@ FetchContent_Declare(
 	GIT_TAG v3.5.0
 )
 FetchContent_MakeAvailable(Catch2)
-add_executable(regex
-	src/regex.cc
+add_library(regex
+	src/C1402_regex.cc
+	src/C1402_regex.h
 )
 target_include_directories(regex
-	PRIVATE src
+	INTERFACE src
 )
 option(PRINT_MESSAGES "Print debug information" OFF)
 option(UNIT_TEST"enable unit testing" OFF)
 if (UNIT_TEST)
-	message("regex:: unit testing enabled")
+	message("C1402: unit testing enabled")
 	target_compile_definitions(regex PRIVATE UNIT_TESTING)
+#else()
+#	message("C1402: main enabled")
+#	target_compile_definitions(regex PRIVATE REGEX_MAIN)
 endif()
 if (PRINT_MESSAGES)
 	message("regex:: printing enabled")
@@ -34,4 +36,4 @@ else()
 endif()
 target_link_libraries(regex PRIVATE Catch2::Catch2WithMain)
 set_target_properties(regex PROPERTIES CXX_STANDARD 20)
-target_compile_options(regex PRIVATE -Wall -Werror -Wextra -Wpedantic -Wshadow)
+#target_compile_options(regex PRIVATE -Wall -Werror -Wextra -Wpedantic -Wshadow)

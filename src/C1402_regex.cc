@@ -173,6 +173,20 @@ substitution_type C1402_regex::utils::symbol_to_srule(char c) {
 			return S_LITERAL;
 	}
 }
+static std::string utils::rule_to_string(rules rule) {
+	switch(rule) {
+		default:
+			[[fallthrough]];
+		case(R_DEFAULT):
+			return "DEFAULT";
+		case(R_OPT):
+			return "OPTION";
+		case(R_PLUS): //visit notes and recall what the name of this is. kleene closure or something
+			return "PLUS";
+		case(R_STAR):
+			return "STAR";
+	}
+}
 //TODO lint input, e.g., (ab)* is invalid, but (a*b*) is valid
 //TODO implement this as a constructor of regex
 //create a node-tree of REs from an input string
@@ -290,7 +304,7 @@ int main(int argc, char** argv) {
 	}
 //output
 	printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
-	regex* regexpr = create_from_string(regex_expression);
+	regex* regexpr = utils::create_from_string(regex_expression);
 
 	regex* instance = regexpr;
 	while(instance && PRINT_MESSAGES) {
@@ -313,7 +327,7 @@ int main(int argc, char** argv) {
 #ifdef UNIT_TESTING
 #define CATCH_CONFIG_MAIN
 TEST_CASE( "test match on a single literal" ) {
-	regex* expression = create_from_string("a");
+	regex* expression = utils::create_from_string("a");
 	//
 	REQUIRE(match(expression, "qwerty abcd"));
 	REQUIRE(match(expression, "a"));
@@ -321,7 +335,7 @@ TEST_CASE( "test match on a single literal" ) {
 	delete expression;
 }
 TEST_CASE( "test match on a S_ALNUM" ) {
-	regex* expression = create_from_string(".");
+	regex* expression = utils::create_from_string(".");
 	//
 	REQUIRE(match(expression, "qwerty abcd"));
 	REQUIRE(match(expression, "a"));
@@ -330,7 +344,7 @@ TEST_CASE( "test match on a S_ALNUM" ) {
 	delete expression;
 }
 TEST_CASE( "test match on a S_ALPHA" ) {
-	regex* expression = create_from_string("&");
+	regex* expression = utils::create_from_string("&");
 	//
 	REQUIRE(match(expression, "qwerty bcd"));
 	REQUIRE(match(expression, "b"));
@@ -340,7 +354,7 @@ TEST_CASE( "test match on a S_ALPHA" ) {
 	delete expression;
 }
 TEST_CASE( "test match on a S_DIGIT" ) {
-	regex* expression = create_from_string("#");
+	regex* expression = utils::create_from_string("#");
 	//
 	REQUIRE(match(expression, "a") == false);
 	REQUIRE(match(expression, "qwerty abcd") == false);
@@ -350,7 +364,7 @@ TEST_CASE( "test match on a S_DIGIT" ) {
 	delete expression;
 }
 TEST_CASE( "test match on a single escaped symbol" ) {
-	regex* expression = create_from_string("\\#");
+	regex* expression = utils::create_from_string("\\#");
 	//
 	REQUIRE(match(expression, "a") == false);
 	REQUIRE(match(expression, "qwerty abcd") == false);
@@ -362,7 +376,7 @@ TEST_CASE( "test match on a single escaped symbol" ) {
 }
 //
 TEST_CASE( "test match with optional" ) {
-	regex* expression = create_from_string("ab?d");
+	regex* expression = utils::create_from_string("ab?d");
 	//
 	REQUIRE(match(expression, "abd"));
 	REQUIRE(match(expression, "ad"));
@@ -371,7 +385,7 @@ TEST_CASE( "test match with optional" ) {
 	delete expression;
 }
 TEST_CASE( "test match with star" ) {
-	regex* expression = create_from_string("ab*d");
+	regex* expression = utils::create_from_string("ab*d");
 	//
 	REQUIRE(match(expression, "abd"));
 	REQUIRE(match(expression, "ad"));
@@ -381,7 +395,7 @@ TEST_CASE( "test match with star" ) {
 	delete expression;
 }
 TEST_CASE( "test match with plus" ) {
-	regex* expression = create_from_string("ab+d");
+	regex* expression = utils::create_from_string("ab+d");
 	//
 	REQUIRE(match(expression, "abd"));
 	REQUIRE(match(expression, "ad") == false);
@@ -391,7 +405,7 @@ TEST_CASE( "test match with plus" ) {
 	delete expression;
 }
 TEST_CASE( "test match with alternate literals in expression" ) {
-	regex* expression = create_from_string("a(bc)d");
+	regex* expression = utils::create_from_string("a(bc)d");
 	//
 	REQUIRE(match(expression, "acd"));
 	REQUIRE(match(expression, "abd"));
@@ -400,7 +414,7 @@ TEST_CASE( "test match with alternate literals in expression" ) {
 	delete expression;
 }
 TEST_CASE( "test match with alternate star repetitions in expression" ) {
-	regex* expression = create_from_string("a(b*c*)d");
+	regex* expression = utils::create_from_string("a(b*c*)d");
 	//
 	REQUIRE(match(expression, "acd"));
 	REQUIRE(match(expression, "abd"));
@@ -412,7 +426,7 @@ TEST_CASE( "test match with alternate star repetitions in expression" ) {
 	delete expression;
 }
 TEST_CASE( "test match with alternate plus repetitions in expression" ) {
-	regex* expression = create_from_string("a(b+c+)d");
+	regex* expression = utils::create_from_string("a(b+c+)d");
 	//
 	REQUIRE(match(expression, "acd"));
 	REQUIRE(match(expression, "abd"));
