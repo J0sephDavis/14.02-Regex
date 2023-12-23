@@ -1,3 +1,4 @@
 regex
 compile_commands.json
 .cache
+build/
