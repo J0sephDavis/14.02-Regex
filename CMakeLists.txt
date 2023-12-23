@@ -3,7 +3,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(regex
   LANGUAGES CXX
-  VERSION 1.1.0
+  VERSION 1.2.0
 )
 
 Include(FetchContent)
