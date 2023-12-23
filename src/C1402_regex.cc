@@ -1,134 +1,11 @@
-#include <cctype>
-#include <stdexcept>
-#include <string.h>
-#include <iostream>
-#include <string>
-#include <catch2/catch_test_macros.hpp>
-#define CATCH_CONFIG_MAIN
-/* 1."abc" -> 	acceptsthe literal string "abc"
- * 2."a?bc" ->	accepts "abc" or "bc".
- * 3."ab*c" -> 	accepts "ac", "abc", "abbbbbbbbbbbbbbbbc"
- * 4."ab+c" -> 	accepts "abc", "abbbbbbbbbbbbbbc"
- * 5."ab(CD)" -> 	accepts "abC", "abD"
- * 6."ab(C*D*)"->	accepts "ab", "abC", "abD", "abCCCCCCCC", "abDDDDDD"
- * 7."ab(CD)*" -> acceptance to be determined when compilation/parsing code is rewritten. (Possibly make equivalent to input string 6? Pre-processing or somesuch method)
- * 8. "ab." -> 	accepts "abZ", "abf", "ab9"
- * 9. "ab&" -> accepts "aba", "abB", "abz"
- * 10."ab#" -> accepts "ab1", "ab2", "ab9"
- * 11. "ab.*" -> accepts "ab", "ab1", "ab22222222222", "abf", "abZZZZZZZZz"
- * */
-#ifndef PRINT_MESSAGES
-#define PRINT_MESSAGES 1
-#endif
-//the rules that change functionality
-//some rules such as using a "\" to indicate a symbol is literal,
-//are handled during compilation & thus don't need a named rule.
-//
-//using an enum is restricting, unless I guess we just make every combination of values.. handling (a*bc)? means a parent of R_OPT with child a* who has alternates b & c.
-//but if we want to use alternates,
-enum rules {
-	R_DEFAULT,
-	//these rules are reserved fo class printouts
-	R_STAR,
-	R_PLUS,
-	R_OPT,
-};
-enum substitution_type {
-	S_LITERAL = 0,
-	S_DIGIT, 	//DIGIT - numbers 0-9
-	S_ALPHA, 	//ALPHA - letters a-zA-Z
-	S_ALNUM, //ALPHANUMERIC - any letter or number
-};
-static std::string rule_to_string(rules rule) {
-	switch(rule) {
-		default:
-#if PRINT_MESSAGES==1
-			std::cout << "defaulting in rule_to_string";
-#endif
-			[[fallthrough]];
-		case(R_DEFAULT):
-			return "DEFAULT";
-		case(R_OPT):
-			return "OPTION";
-		case(R_PLUS): //visit notes and recall what the name of this is. kleene closure or something
-			return "PLUS";
-		case(R_STAR):
-			return "STAR";
-	}
-}
-std::string sub_to_string(substitution_type sub_rule) {
-	switch (sub_rule) {
-		case(S_ALNUM):
-			return "ALNUM";
-		case(S_ALPHA):
-			return "ALPHA";
-		case(S_DIGIT):
-			return "DIGIT";
-		default:
-			return "ERROR";
-		case(S_LITERAL):
-			return "LITERAL";		
-	}
-};
-/***                           	  the regex class                                   ***/
-class regex {
-	public:
-		regex(int, substitution_type);
-		virtual ~regex() {
-			if (alternate != NULL) {
-				delete alternate;
-			}
-			//because the alternate will also point to next
-			else if (next != NULL) {
-				delete next;
-			}
-		}
-		int getLiteral();
-
-		regex* getNext();
-		virtual void setNext(regex*);
-		virtual bool match_here(char* text);
-		virtual rules getRule() {
-			return R_DEFAULT;
-		}
-		bool accepts(int character);
-		void addAlternate(regex*);
-		regex* getAlternate();
-		//
-		std::string sub_as_string() {
-			return sub_to_string(sub_rule);
-		}
-	protected:
-		class regex* next;
-		class regex* alternate;
-		substitution_type sub_rule;
-	private:
-		//literal's value will not matter when substitute != R_CHAR
-		int literal;
-};
-class regex_star : public regex {
-	public:
-		regex_star(int _literal, substitution_type _sub_rule = S_LITERAL) :
-			regex(_literal,_sub_rule) {};
-		bool match_here(char* text) override;
-		rules getRule() override { return R_STAR; };
-};
-class regex_plus : public regex {
-	public:
-		regex_plus(int _literal, substitution_type _sub_rule = S_LITERAL) :
-			regex(_literal, _sub_rule) {};
-		bool match_here(char* text) override;
-		rules getRule() override { return R_PLUS; };
-};
-class regex_opt : public regex {
-	public:
-		regex_opt(int _literal, substitution_type _sub_rule = S_LITERAL) :
-			regex(_literal, _sub_rule) {};
-		bool match_here(char* text) override;
-		rules getRule() override { return R_OPT; };
-};
-/** 	      prototypes 	        **/
-void re_print(regex*);
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+#include <C1402_regex.h>
+using namespace C1402_regex;
+//TODO: Implemented longest-match functionality for repetition options.
 //creates a regex object with specified rule & literal
 regex::regex(int _literal, substitution_type _sub_rule = S_LITERAL) {
 	literal = _literal;
@@ -145,9 +22,6 @@ bool regex::accepts(int character) {
 		case(S_DIGIT):
 			return std::isdigit(character);
 		default:
-#if PRINT_MESSAGES==1
-			std::cout << "::accepts() - sub rule defaulting to S_LITERAL\n\n";
-#endif
 			[[fallthrough]];
 		case(S_LITERAL):
 			return character == literal;
@@ -177,41 +51,30 @@ void regex::addAlternate(regex* _alternate) {
 	else
 		alternate = _alternate;
 }
-//prints the nodes information
-void re_print(regex* instance) {
-	if (instance)
-		printf("[Rule: %s | Literal: %c | Next? : %s | Alt?: %s]",
-				rule_to_string(instance->getRule()).c_str(),
-				instance->getLiteral(),
-				(instance->getNext()) ? "Yes" : "No",
-				(instance->getAlternate() ? "yes" : "no"));
-	else printf("[-]");
-}
 /*** 					matching 				    ***/
 //returns true if the expression found a match in the text, otherwise it returns false.
 bool match(regex* expression, std::string input_text) {
 	char* text = (char*)calloc(1,input_text.size());
+	char* start_of_text = text;
 	strncpy(text, input_text.c_str(), input_text.size());
+	char* end_of_match = NULL;
 	do {
-#if PRINT_MESSAGES==1
-			std::cout << "\n<-match-loop->\t" << text << "\n";
-#endif
-		if (expression->match_here(text))
-			return true;
+		end_of_match = expression->match_here(text);
+		if (end_of_match != NULL)
+			break;
 	} while(*text++ != '\0');
+	if (end_of_match != NULL) {
+		std::cout << "found match of length:" << (end_of_match - text) << "\n";
+		std::cout << "match begins after " << (text - start_of_text) << " chars\n";
+		char* matched_text = (char*)calloc(1, end_of_match - text);
+		strncpy(matched_text, text, end_of_match-text);
+		std::cout << "matched text: [" << std::string(matched_text) << "]\n";
+		return true;
+	}
 	return false; 
-	free(text);
+	free(start_of_text);
 }
-bool regex::match_here(char *text) {
-#if PRINT_MESSAGES==1
-		std::cout << "match:\t";
-		if (sub_rule == S_LITERAL)
-			std::cout << (char)getLiteral() << " == " << *text;
-		else
-			std::cout << sub_as_string() << " == " << *text;
-		std::cout << "\t|" << "alt:" << std::string((alternate)?"T":"F") << "\t";
-		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-#endif
+char* regex::match_here(char *text) {
 /* Match
  * process current rule.
  * If returns true: process next.
@@ -220,7 +83,7 @@ bool regex::match_here(char *text) {
  * */
 	if (accepts(*text)) {
 		if (next == NULL) {
-			return true;
+			return text+1;
 		}
 		return (next->match_here(text+1));
 	}
@@ -228,89 +91,64 @@ bool regex::match_here(char *text) {
 		return alternate->match_here(text);
 	}
 	//no valid expressions, returns false by default
-	return false;
+	return NULL;
 }
-bool regex_star::match_here(char *text) {
-#if PRINT_MESSAGES==1
-		std::cout << "match*:\t";
-		if (sub_rule == S_LITERAL)
-			std::cout << (char)getLiteral() << " == " << *text;
-		else
-			std::cout << sub_as_string() << " == " << *text;
-		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-#endif
-	//TODO create a flag for shortest or longest match. This is currently a shortest match implementation
+char* regex_star::match_here(char *text) {
 	//perform the absolute shortest match if we have no options.
 	if (next == NULL) {
 		//the shortest possible match in R_STAR is NO match
-		return true;
+		return text;
 	}
 	//continue attempting the current rule
 	else {
-		char* tmp_text = text; //used so that if/when we call the alternate case, we have the original starting point
+		char* tmp_text = text;
 		do {
-			if(next->match_here(tmp_text)) return true;
+			auto retVal = next->match_here(tmp_text);
+			if(retVal != NULL) return retVal;
 		} while (*tmp_text != '\0' && accepts(*tmp_text++));
 	}
 	//Failed to match expressions. Attempt alternate
 	if (alternate != NULL) {
-		if (alternate->match_here(text)) return true;
+		auto retVal = alternate->match_here(text);
+		if (retVal != NULL) return retVal;
 	}
 	//no valid expressions, returns false by default
-	return false;
+	return NULL;
 }
 
-bool regex_plus::match_here(char* text) {
-#if PRINT_MESSAGES==1
-		std::cout << "match+:\t";
-		if (sub_rule == S_LITERAL)
-			std::cout << (char)getLiteral() << " == " << *text;
-		else
-			std::cout << sub_as_string() << " == " << *text;
-		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-#endif
-	//TODO Allow for a longest match (currently doing shortest)
-	if (next == NULL && accepts(*text)) return true;
+char* regex_plus::match_here(char* text) {
+	if (next == NULL && accepts(*text)) return text+1;
 	if (next != NULL) {
 		for (char* tmp_text = text;*tmp_text != '\0' && accepts(*tmp_text);tmp_text++) {
-			//we use the tmp array here so that if it fails we can attempt an alternate match.
-			//Otherwise, we could just store the offset instead of duplicating text
-			if (next->match_here(tmp_text+1)) return true;
+			auto retVal = next->match_here(tmp_text+1);
+			if (retVal != NULL) return retVal;
 		}
 	}
 	if (alternate != NULL) {
-		if(alternate->match_here(text)) return true;
+		auto retVal = alternate->match_here(text);
+		if (retVal != NULL) return retVal;
 	}
-	return false;
+	return NULL;
 }
-bool regex_opt::match_here(char *text) {
-#if PRINT_MESSAGES==1
-		std::cout << "match?:\t";
-		if (sub_rule == S_LITERAL)
-			std::cout << (char)getLiteral() << " == " << *text;
-		else
-			std::cout << sub_as_string() << " == " << *text;
-		std::cout << "\t|" << "next:" << std::string((next)?"T":"F") << "\n";
-#endif
+char* regex_opt::match_here(char *text) {
 	if (accepts(*text)) {
 		if (next != NULL ) return next->match_here(++text);
-		else return true;
+		else return text+1;
 	}
 	else {
-		if (next->match_here(text)) return true;
+		auto retVal = next->match_here(text);
+		if (retVal) return retVal;
 		else if (alternate != NULL) {
-			if (alternate->match_here(text)) return true;
+			retVal = alternate->match_here(text);
+			if (retVal != NULL) return retVal;
 		}
 	}
-	return false;
+	return NULL;
 }
 
 /*** 				regex compilation 				    ***/
-/* The following code is for compiling the    *//** 	      prototypes 	        **/
-/*regex from an input string into the linked  */rules symbol_to_rrule(regex*, char);
-/*regex nodes.                                */substitution_type symbol_to_srule(char);
 //Return the rule associated with a symbol. R_DEFAULT if there is no matching rule
-rules symbol_to_rrule(char c) {
+rules C1402_regex::utils::symbol_to_rrule(char c) {
 	switch(c) {
 		case('*'):
 			return R_STAR;
@@ -323,7 +161,7 @@ rules symbol_to_rrule(char c) {
 	}
 }
 //Return the substitution rule associated with the symbol. S_LITERAL for non-matching symbol
-substitution_type symbol_to_srule(char c) {
+substitution_type C1402_regex::utils::symbol_to_srule(char c) {
 	switch(c) {
 		case('.'):
 			return S_ALNUM;
@@ -338,16 +176,13 @@ substitution_type symbol_to_srule(char c) {
 //TODO lint input, e.g., (ab)* is invalid, but (a*b*) is valid
 //TODO implement this as a constructor of regex
 //create a node-tree of REs from an input string
-regex* create_from_string(std::string regex_tape) {
+regex* C1402_regex::utils::create_from_string(std::string regex_tape) {
 	regex* root_node = NULL;
 	regex* last_node = NULL;
 	regex* alternate_node = NULL; //holds the node which has alternates
 	bool do_alternative = false;
 	bool escaped_symbol = false;
 	for (size_t i = 0; i < regex_tape.size(); i++) {
-#if PRINT_MESSAGES==1
-		std::cout << "cfs: i=" << i << "\n";
-#endif
 	//begin compilation
 		regex* current_node;
 		rules current_rule = R_DEFAULT;
@@ -356,39 +191,20 @@ regex* create_from_string(std::string regex_tape) {
 		auto subrule = symbol_to_srule(regex_tape.at(i));
 		int literal = regex_tape.at(i);
 		if (literal == '(') {
-#if PRINT_MESSAGES==1
-			std::cout << "set do_alternative. Skip...\n";
-#endif
 			do_alternative = true;
 			continue;
 		}
 		else if (literal == ')') {
-#if PRINT_MESSAGES==1
-			std::cout << "unset do_alternative. Skip...\n";
-#endif
 			do_alternative = false;
 			continue;
 		}
 		else if (literal == '\\' and escaped_symbol == false) {
-#if PRINT_MESSAGES==1
-			std::cout << "set escaped_symbol. Skip...\n";
-#endif
 			escaped_symbol = true;
 			continue;
 		}
-#if PRINT_MESSAGES==1
-		std::cout << "CR:\t" << rule_to_string(current_rule) << "\n";
-		std::cout << "SR:\t" << sub_to_string(subrule) << "\n";
-		std::cout << "L:\t" << (char)literal << "\n";
-		std::cout << "Alt?\t" << std::string((do_alternative)?"true":"false") << "\n";
-		std::cout << "Esc?\t" << std::string((escaped_symbol)?"true":"false") << "\n";
-#endif
 		if (escaped_symbol) {
 			subrule = S_LITERAL;
 			escaped_symbol = false;
-#if PRINT_MESSAGES==1
-			std::cout << "subRule = S_LITERAL, unset Esc\n";
-#endif
 		}
 		switch (current_rule) {
 			case R_DEFAULT:
@@ -428,21 +244,25 @@ regex* create_from_string(std::string regex_tape) {
 			last_node = current_node;
 		}
 		if (current_rule != R_DEFAULT) i+=1; //consume an extra character if we set a rule
-#if PRINT_MESSAGES==1
-		std::cout << "------\n";
-#endif
 	}//end compilation
 	if (alternate_node != NULL) {
-#if PRINT_MESSAGES==1
-		std::cout << "ending with alt node != NULL. last.setNext(alt)\n";
-#endif
 		//This occurs when the regex string ends with a ')'
 		last_node->setNext(alternate_node);
 	}
 	return root_node;	
 }
-#ifndef UNIT_TESTING
+#ifdef REGEX_MAIN
 /*** 				    main 					    ***/
+//prints the nodes information
+void re_print(regex* instance) {
+	if (instance)
+		printf("[Rule: %s | Literal: %c | Next? : %s | Alt?: %s]",
+				utils::rule_to_string(instance->getRule()).c_str(),
+				instance->getLiteral(),
+				(instance->getNext()) ? "Yes" : "No",
+				(instance->getAlternate() ? "yes" : "no"));
+	else printf("[-]");
+}
 int main(int argc, char** argv) {
 	int a; 				//iterator
 	int input_len = 0; 			//the length of the input string, for malloc
@@ -489,7 +309,9 @@ int main(int argc, char** argv) {
 	free(input_text);
 	delete (regexpr);
 }
-#else
+#endif
+#ifdef UNIT_TESTING
+#define CATCH_CONFIG_MAIN
 TEST_CASE( "test match on a single literal" ) {
 	regex* expression = create_from_string("a");
 	//
