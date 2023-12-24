@@ -8,7 +8,6 @@
 #include <string.h>
 #include <iostream>
 #include <string>
-#include <catch2/catch_test_macros.hpp>
 /* 1."abc" -> 	acceptsthe literal string "abc"
  * 2."a?bc" ->	accepts "abc" or "bc".
  * 3."ab*c" -> 	accepts "ac", "abc", "abbbbbbbbbbbbbbbbc"
