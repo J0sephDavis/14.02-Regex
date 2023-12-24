@@ -18,7 +18,7 @@ else()
 	message("regex:: printing disabled")
 	target_compile_definitions(regex PRIVATE PRINT_MESSAGES=0)
 endif()
-install(TARGETS regex)
+install(TARGETS regex DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/C1402_regex")
 #Include(FetchContent)
 #FetchContent_Declare(
 #	Catch2
