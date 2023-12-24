@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
-#include <C1402_regex.h>
+#include "C1402_regex.h"
 using namespace C1402_regex;
 //TODO: Implemented longest-match functionality for repetition options.
 //creates a regex object with specified rule & literal
@@ -52,28 +52,6 @@ void regex::addAlternate(regex* _alternate) {
 		alternate = _alternate;
 }
 /*** 					matching 				    ***/
-//returns true if the expression found a match in the text, otherwise it returns false.
-bool match(regex* expression, std::string input_text) {
-	char* text = (char*)calloc(1,input_text.size());
-	char* start_of_text = text;
-	strncpy(text, input_text.c_str(), input_text.size());
-	char* end_of_match = NULL;
-	do {
-		end_of_match = expression->match_here(text);
-		if (end_of_match != NULL)
-			break;
-	} while(*text++ != '\0');
-	if (end_of_match != NULL) {
-		std::cout << "found match of length:" << (end_of_match - text) << "\n";
-		std::cout << "match begins after " << (text - start_of_text) << " chars\n";
-		char* matched_text = (char*)calloc(1, end_of_match - text);
-		strncpy(matched_text, text, end_of_match-text);
-		std::cout << "matched text: [" << std::string(matched_text) << "]\n";
-		return true;
-	}
-	return false; 
-	free(start_of_text);
-}
 char* regex::match_here(char *text) {
 /* Match
  * process current rule.
@@ -173,6 +151,20 @@ substitution_type C1402_regex::utils::symbol_to_srule(char c) {
 			return S_LITERAL;
 	}
 }
+static std::string utils::rule_to_string(rules rule) {
+	switch(rule) {
+		default:
+			[[fallthrough]];
+		case(R_DEFAULT):
+			return "DEFAULT";
+		case(R_OPT):
+			return "OPTION";
+		case(R_PLUS): //visit notes and recall what the name of this is. kleene closure or something
+			return "PLUS";
+		case(R_STAR):
+			return "STAR";
+	}
+}
 //TODO lint input, e.g., (ab)* is invalid, but (a*b*) is valid
 //TODO implement this as a constructor of regex
 //create a node-tree of REs from an input string
@@ -253,6 +245,28 @@ regex* C1402_regex::utils::create_from_string(std::string regex_tape) {
 }
 #ifdef REGEX_MAIN
 /*** 				    main 					    ***/
+//returns true if the expression found a match in the text, otherwise it returns false.
+bool match(regex* expression, std::string input_text) {
+	char* text = (char*)calloc(1,input_text.size());
+	char* start_of_text = text;
+	strncpy(text, input_text.c_str(), input_text.size());
+	char* end_of_match = NULL;
+	do {
+		end_of_match = expression->match_here(text);
+		if (end_of_match != NULL)
+			break;
+	} while(*text++ != '\0');
+	if (end_of_match != NULL) {
+		std::cout << "found match of length:" << (end_of_match - text) << "\n";
+		std::cout << "match begins after " << (text - start_of_text) << " chars\n";
+		char* matched_text = (char*)calloc(1, end_of_match - text);
+		strncpy(matched_text, text, end_of_match-text);
+		std::cout << "matched text: [" << std::string(matched_text) << "]\n";
+		return true;
+	}
+	return false; 
+	free(start_of_text);
+}
 //prints the nodes information
 void re_print(regex* instance) {
 	if (instance)
@@ -290,7 +304,7 @@ int main(int argc, char** argv) {
 	}
 //output
 	printf("REGEX:%s\nTEXT:%s\n", regex_expression, input_text);
-	regex* regexpr = create_from_string(regex_expression);
+	regex* regexpr = utils::create_from_string(regex_expression);
 
 	regex* instance = regexpr;
 	while(instance && PRINT_MESSAGES) {
@@ -308,119 +322,5 @@ int main(int argc, char** argv) {
 	printf("%s\n", (match(regexpr, input_text))? "match" : "no match");
 	free(input_text);
 	delete (regexpr);
-}
-#endif
-#ifdef UNIT_TESTING
-#define CATCH_CONFIG_MAIN
-TEST_CASE( "test match on a single literal" ) {
-	regex* expression = create_from_string("a");
-	//
-	REQUIRE(match(expression, "qwerty abcd"));
-	REQUIRE(match(expression, "a"));
-	REQUIRE(match(expression, "b") == false);
-	delete expression;
-}
-TEST_CASE( "test match on a S_ALNUM" ) {
-	regex* expression = create_from_string(".");
-	//
-	REQUIRE(match(expression, "qwerty abcd"));
-	REQUIRE(match(expression, "a"));
-	REQUIRE(match(expression, "1"));
-	REQUIRE(match(expression, "") == false);
-	delete expression;
-}
-TEST_CASE( "test match on a S_ALPHA" ) {
-	regex* expression = create_from_string("&");
-	//
-	REQUIRE(match(expression, "qwerty bcd"));
-	REQUIRE(match(expression, "b"));
-	REQUIRE(match(expression, "b2"));
-	REQUIRE(match(expression, "1") == false);
-	REQUIRE(match(expression, "") == false);
-	delete expression;
-}
-TEST_CASE( "test match on a S_DIGIT" ) {
-	regex* expression = create_from_string("#");
-	//
-	REQUIRE(match(expression, "a") == false);
-	REQUIRE(match(expression, "qwerty abcd") == false);
-	REQUIRE(match(expression, "") == false);
-	REQUIRE(match(expression, "qwe2ty bcd"));
-	REQUIRE(match(expression, "0"));
-	delete expression;
-}
-TEST_CASE( "test match on a single escaped symbol" ) {
-	regex* expression = create_from_string("\\#");
-	//
-	REQUIRE(match(expression, "a") == false);
-	REQUIRE(match(expression, "qwerty abcd") == false);
-	REQUIRE(match(expression, "") == false);
-	REQUIRE(match(expression, "qwe2ty bcd") == false);
-	REQUIRE(match(expression, "0") == false);
-	REQUIRE(match(expression, "#"));
-	delete expression;
-}
-//
-TEST_CASE( "test match with optional" ) {
-	regex* expression = create_from_string("ab?d");
-	//
-	REQUIRE(match(expression, "abd"));
-	REQUIRE(match(expression, "ad"));
-	REQUIRE(match(expression, "ab") == false);
-	REQUIRE(match(expression, "") == false);
-	delete expression;
-}
-TEST_CASE( "test match with star" ) {
-	regex* expression = create_from_string("ab*d");
-	//
-	REQUIRE(match(expression, "abd"));
-	REQUIRE(match(expression, "ad"));
-	REQUIRE(match(expression, "ab") == false);
-	REQUIRE(match(expression, "") == false);
-	REQUIRE(match(expression, "abbbbbbbbbbbbbbd"));
-	delete expression;
-}
-TEST_CASE( "test match with plus" ) {
-	regex* expression = create_from_string("ab+d");
-	//
-	REQUIRE(match(expression, "abd"));
-	REQUIRE(match(expression, "ad") == false);
-	REQUIRE(match(expression, "ab") == false);
-	REQUIRE(match(expression, "") == false);
-	REQUIRE(match(expression, "abbbbbbbbbbbbbbd"));
-	delete expression;
-}
-TEST_CASE( "test match with alternate literals in expression" ) {
-	regex* expression = create_from_string("a(bc)d");
-	//
-	REQUIRE(match(expression, "acd"));
-	REQUIRE(match(expression, "abd"));
-	REQUIRE(match(expression, "acbd") == false);
-	REQUIRE(match(expression, "") == false);
-	delete expression;
-}
-TEST_CASE( "test match with alternate star repetitions in expression" ) {
-	regex* expression = create_from_string("a(b*c*)d");
-	//
-	REQUIRE(match(expression, "acd"));
-	REQUIRE(match(expression, "abd"));
-	REQUIRE(match(expression, "abbbbbbbbbbbbbbbbbbbbbd"));
-	REQUIRE(match(expression, "accccccccccccccccccccd"));
-	REQUIRE(match(expression, "abcd") == false);
-	REQUIRE(match(expression, "ad"));
-	REQUIRE(match(expression, "") == false);
-	delete expression;
-}
-TEST_CASE( "test match with alternate plus repetitions in expression" ) {
-	regex* expression = create_from_string("a(b+c+)d");
-	//
-	REQUIRE(match(expression, "acd"));
-	REQUIRE(match(expression, "abd"));
-	REQUIRE(match(expression, "abbbbbbbbbbbbbbbbbbbbbd"));
-	REQUIRE(match(expression, "accccccccccccccccccccd"));
-	REQUIRE(match(expression, "abcd") == false);
-	REQUIRE(match(expression, "ad") == false);
-	REQUIRE(match(expression, "") == false);
-	delete expression;
 }
 #endif

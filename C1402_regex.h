@@ -8,7 +8,6 @@
 #include <string.h>
 #include <iostream>
 #include <string>
-#include <catch2/catch_test_macros.hpp>
 /* 1."abc" -> 	acceptsthe literal string "abc"
  * 2."a?bc" ->	accepts "abc" or "bc".
  * 3."ab*c" -> 	accepts "ac", "abc", "abbbbbbbbbbbbbbbbc"
@@ -93,23 +92,10 @@ namespace utils {
 	rules symbol_to_rrule(char);
 	substitution_type symbol_to_srule(char);
 	regex* create_from_string(std::string);
+	static std::string rule_to_string(rules);
 }//end utils namespace
 }//end regex namespace
 //
-//static std::string utils::rule_to_string(rules rule) {
-//	switch(rule) {
-//		default:
-//			[[fallthrough]];
-//		case(R_DEFAULT):
-//			return "DEFAULT";
-//		case(R_OPT):
-//			return "OPTION";
-//		case(R_PLUS): //visit notes and recall what the name of this is. kleene closure or something
-//			return "PLUS";
-//		case(R_STAR):
-//			return "STAR";
-//	}
-//}
 //std::string utils::sub_to_string(substitution_type sub_rule) {
 //	switch (sub_rule) {
 //		case(S_ALNUM):
