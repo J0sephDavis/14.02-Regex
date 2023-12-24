@@ -3,22 +3,24 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(regex
   LANGUAGES CXX
   VERSION 1.2.0
+  DESCRIPTION "An unrecommended recursive regex library"
 )
-add_library(regex
-	C1402_regex.cc
-	C1402_regex.h
+add_library(regex INTERFACE
+	#	C1402_regex.cc
+	#	C1402_regex.h
 )
-set_target_properties(regex PROPERTIES CXX_STANDARD 20)
-
-option(PRINT_MESSAGES "Print debug information" OFF)
-if (PRINT_MESSAGES)
-	message("regex:: printing enabled")
-	target_compile_definitions(regex PRIVATE PRINT_MESSAGES=1)
-else()
-	message("regex:: printing disabled")
-	target_compile_definitions(regex PRIVATE PRINT_MESSAGES=0)
-endif()
-install(TARGETS regex DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/C1402_regex")
+target_include_directories(regex INTERFACE .)
+#set_target_properties(regex PROPERTIES CXX_STANDARD 20)
+#
+#option(PRINT_MESSAGES "Print debug information" OFF)
+#if (PRINT_MESSAGES)
+#	message("regex:: printing enabled")
+#	target_compile_definitions(regex PRIVATE PRINT_MESSAGES=1)
+#else()
+#	message("regex:: printing disabled")
+#	target_compile_definitions(regex PRIVATE PRINT_MESSAGES=0)
+#endif()
+#install(TARGETS regex DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/C1402_regex")
 #Include(FetchContent)
 #FetchContent_Declare(
 #	Catch2
