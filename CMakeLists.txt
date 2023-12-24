@@ -10,6 +10,7 @@ add_library(regex INTERFACE
 	#	C1402_regex.h
 )
 target_include_directories(regex INTERFACE .)
+
 #set_target_properties(regex PROPERTIES CXX_STANDARD 20)
 #
 #option(PRINT_MESSAGES "Print debug information" OFF)
